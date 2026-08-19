@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { writeFile, mkdir } from "fs/promises";
-import path from "path";
+import { put } from "@vercel/blob";
 
 export async function POST(req: NextRequest) {
   try {
@@ -15,7 +14,14 @@ export async function POST(req: NextRequest) {
     }
 
     // Validate mime type
-    const validMimes = ["image/jpeg", "image/png", "image/webp", "image/jpg", "image/gif", "image/svg+xml"];
+    const validMimes = [
+      "image/jpeg",
+      "image/png",
+      "image/webp",
+      "image/jpg",
+      "image/gif",
+      "image/svg+xml",
+    ];
     if (!validMimes.includes(file.type)) {
       return NextResponse.json(
         { success: false, error: "Formato no válido. Usa PNG, JPG o WEBP." },
@@ -31,32 +37,33 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
-
-    // Ensure uploads directory exists
-    const uploadsDir = path.join(process.cwd(), "public", "uploads");
-    await mkdir(uploadsDir, { recursive: true });
-
     // Generate safe unique filename
-    const ext = path.extname(file.name) || ".jpg";
-    const cleanName = path.basename(file.name, ext).replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 30);
-    const filename = `prod-${Date.now()}-${cleanName}${ext}`;
-    const filePath = path.join(uploadsDir, filename);
+    const ext = file.name.split(".").pop() || "jpg";
+    const cleanName = file.name
+      .replace(/\.[^/.]+$/, "")
+      .replace(/[^a-zA-Z0-9_-]/g, "_")
+      .slice(0, 30);
+    const filename = `products/prod-${Date.now()}-${cleanName}.${ext}`;
 
-    await writeFile(filePath, buffer);
+    // Upload directly to Vercel Blob
+    const token =
+      process.env.BLOB_READ_WRITE_TOKEN ||
+      "vercel_blob_rw_c3wpKUktzGlb2k4t_mbKsNtnxB7GXoF04mnXjcq7iRcBR8H";
 
-    const publicUrl = `/uploads/${filename}`;
+    const blob = await put(filename, file, {
+      access: "public",
+      token: token,
+    });
 
     return NextResponse.json({
       success: true,
-      url: publicUrl,
-      filename,
+      url: blob.url,
+      filename: blob.pathname,
     });
   } catch (error: any) {
-    console.error("Error al subir imagen:", error);
+    console.error("Error al subir imagen a Vercel Blob:", error);
     return NextResponse.json(
-      { success: false, error: error.message || "Error al procesar la subida." },
+      { success: false, error: error.message || "Error al procesar la subida a Vercel Blob." },
       { status: 500 }
     );
   }

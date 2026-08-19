@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Eye,
@@ -22,6 +23,7 @@ import {
   ChevronRight,
   ExternalLink,
   Lock,
+  ImageIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -148,7 +150,7 @@ export default function CatalogoPublicoPage() {
   const [isSearchingTrack, setIsSearchingTrack] = useState(false);
   const [trackError, setTrackError] = useState<string | null>(null);
 
-  // Fetch real synchronized products from Database
+  // Fetch real synchronized products from Database (Vercel Blob images)
   useEffect(() => {
     async function loadProducts() {
       try {
@@ -169,11 +171,9 @@ export default function CatalogoPublicoPage() {
             originalPrice: Number(p.salePrice) * 1.2,
             isNew: true,
             tag: p.category === "FRAME" ? "Oftálmico" : "Destacado",
-            imageUrl:
-              p.imageUrl ||
-              "https://images.unsplash.com/photo-1511499767150-a48a237f0083?w=800&auto=format&fit=crop&q=80",
+            imageUrl: p.imageUrl || null,
           }));
-          // Merge with initial showcases
+          // Put live database items first
           setProductsList([...mappedDbProducts, ...INITIAL_CURATED_FRAMES]);
         }
       } catch (err) {
@@ -296,7 +296,7 @@ export default function CatalogoPublicoPage() {
             {/* Badges */}
             <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-semibold">
               <Sparkles className="h-3.5 w-3.5 text-blue-400 animate-spin" style={{ animationDuration: "6s" }} />
-              Colección 2026 • Sincronizada con Taller Propio
+              Colección 2026 • Fotos Reales en Vercel Blob
             </div>
 
             <h1 className="text-4xl sm:text-6xl font-extrabold tracking-tight text-white leading-tight">
@@ -481,14 +481,21 @@ export default function CatalogoPublicoPage() {
                   <span className="text-xs font-mono text-slate-500">{prod.measurements}</span>
                 </div>
 
-                {/* Product Image */}
-                <div className="relative h-48 w-full rounded-2xl overflow-hidden bg-slate-950/80 border border-slate-800/80 flex items-center justify-center p-2 mb-4 group-hover:border-blue-500/30 transition-colors">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={prod.imageUrl}
-                    alt={prod.name}
-                    className="h-full w-full object-cover object-center rounded-xl group-hover:scale-108 transition-transform duration-500"
-                  />
+                {/* Product Image with Vercel Blob / Image fallback */}
+                <div className="relative h-52 w-full rounded-2xl overflow-hidden bg-slate-950/80 border border-slate-800/80 flex items-center justify-center p-2 mb-4 group-hover:border-blue-500/30 transition-colors">
+                  {prod.imageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={prod.imageUrl}
+                      alt={prod.name}
+                      className="h-full w-full object-cover object-center rounded-xl group-hover:scale-108 transition-transform duration-500"
+                    />
+                  ) : (
+                    <div className="flex flex-col items-center justify-center text-slate-500 gap-2">
+                      <Glasses className="h-12 w-12 text-slate-600 group-hover:text-blue-400 transition-colors" />
+                      <span className="text-[11px]">Foto en Taller</span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Product Info */}
