@@ -21,6 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { getSales } from "@/server/actions/pos";
 import { BalancePaymentDialog } from "@/components/pos/balance-payment-dialog";
+import { ThermalReceiptDialog } from "@/components/pos/thermal-receipt-dialog";
 
 export const dynamic = "force-dynamic";
 
@@ -30,15 +31,17 @@ export default function VentasPage() {
   const [filter, setFilter] = useState<"ALL" | "PENDING_BALANCE" | "COMPLETED">("ALL");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedSaleForPayment, setSelectedSaleForPayment] = useState<any | null>(null);
+  const [selectedSaleForReceipt, setSelectedSaleForReceipt] = useState<any | null>(null);
+
+  const loadData = async () => {
+    setLoading(true);
+    const data = await getSales();
+    setSales(data);
+    setLoading(false);
+  };
 
   useEffect(() => {
-    async function load() {
-      setLoading(true);
-      const data = await getSales();
-      setSales(data);
-      setLoading(false);
-    }
-    load();
+    loadData();
   }, []);
 
   const filteredSales = sales.filter((sale) => {
@@ -70,7 +73,7 @@ export default function VentasPage() {
             Ventas y Control de Saldos
           </h2>
           <p className="text-sm text-slate-500">
-            Historial de boletas, anticipos, señas recibidas y liquidación de saldos para entrega.
+            Historial de boletas, anticipos, señas recibidas, impresión de tickets y liquidación de saldos.
           </p>
         </div>
         <Link href="/pos">
@@ -136,7 +139,7 @@ export default function VentasPage() {
       <Card>
         <CardContent className="p-4 flex flex-col md:flex-row gap-4 justify-between items-center">
           {/* Tabs */}
-          <div className="flex gap-2 w-full md:w-auto">
+          <div className="flex flex-wrap gap-2 w-full md:w-auto">
             <Button
               variant={filter === "ALL" ? "default" : "outline"}
               size="sm"
@@ -262,14 +265,27 @@ export default function VentasPage() {
                         </td>
                         <td className="py-3 px-4 text-right">
                           <div className="flex items-center justify-end gap-2">
+                            {/* Print Thermal Ticket Button */}
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => setSelectedSaleForReceipt(sale)}
+                              className="h-8 text-xs text-slate-700 hover:text-blue-600 hover:border-blue-300 gap-1.5 shadow-2xs"
+                              title="Imprimir Ticket Térmico de 80mm"
+                            >
+                              <Printer className="h-3.5 w-3.5 text-blue-600" />
+                              <span>Imprimir</span>
+                            </Button>
+
+                            {/* Collect Balance Payment Button */}
                             {isPending && (
                               <Button
                                 size="sm"
                                 onClick={() => setSelectedSaleForPayment(sale)}
-                                className="h-8 text-xs bg-amber-600 hover:bg-amber-700 text-white gap-1"
+                                className="h-8 text-xs bg-amber-600 hover:bg-amber-700 text-white gap-1 shadow-2xs"
                               >
                                 <DollarSign className="h-3.5 w-3.5" />
-                                Cobrar Saldo
+                                Cobrar
                               </Button>
                             )}
                           </div>
@@ -288,7 +304,18 @@ export default function VentasPage() {
       {selectedSaleForPayment && (
         <BalancePaymentDialog
           sale={selectedSaleForPayment}
-          onClose={() => setSelectedSaleForPayment(null)}
+          onClose={() => {
+            setSelectedSaleForPayment(null);
+            loadData();
+          }}
+        />
+      )}
+
+      {/* Thermal Receipt Print Modal */}
+      {selectedSaleForReceipt && (
+        <ThermalReceiptDialog
+          sale={selectedSaleForReceipt}
+          onClose={() => setSelectedSaleForReceipt(null)}
         />
       )}
     </div>

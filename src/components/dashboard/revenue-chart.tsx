@@ -11,21 +11,25 @@ import {
 } from "recharts";
 import { formatCurrency } from "@/lib/utils";
 
-const weeklyData = [
-  { day: "Lun", ventas: 1250 },
-  { day: "Mar", ventas: 1840 },
-  { day: "Mié", ventas: 2100 },
-  { day: "Jue", ventas: 1650 },
-  { day: "Vie", ventas: 2890 },
-  { day: "Sáb", ventas: 3450 },
-  { day: "Dom", ventas: 980 },
-];
+interface RevenueChartProps {
+  data?: { day: string; ventas: number }[];
+}
 
-export function RevenueChart() {
+export function RevenueChart({ data }: RevenueChartProps) {
+  const chartData = data && data.length > 0 ? data : [
+    { day: "Lun", ventas: 0 },
+    { day: "Mar", ventas: 0 },
+    { day: "Mié", ventas: 0 },
+    { day: "Jue", ventas: 0 },
+    { day: "Vie", ventas: 0 },
+    { day: "Sáb", ventas: 0 },
+    { day: "Dom", ventas: 0 },
+  ];
+
   return (
     <div className="h-64 w-full pt-2">
       <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={weeklyData} margin={{ top: 10, right: 10, left: -15, bottom: 0 }}>
+        <BarChart data={chartData} margin={{ top: 10, right: 10, left: -15, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
           <XAxis
             dataKey="day"
