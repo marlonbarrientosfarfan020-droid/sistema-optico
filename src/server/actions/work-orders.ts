@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { workOrderSchema, WorkOrderFormData } from "@/lib/validations/work-order";
-import { OrderStatus } from "@/types";
+import { OrderStatus, BevelType, FrameSource, LensType, LensMaterial } from "@/types";
 
 export async function getWorkOrders(status?: OrderStatus, patientId?: string) {
   try {
@@ -107,10 +107,139 @@ export async function createWorkOrder(data: WorkOrderFormData) {
     });
 
     revalidatePath("/laboratorio");
+    revalidatePath("/");
     revalidatePath(`/pacientes/${validated.patientId}`);
     return { success: true, data: workOrder };
   } catch (error: any) {
     console.error("Error al crear orden de trabajo:", error);
+    return {
+      success: false,
+      error: error.message || "No se pudo generar la orden de trabajo.",
+    };
+  }
+}
+
+export interface DirectWorkOrderInput {
+  patientId: string;
+  odSphere?: number | null;
+  odCylinder?: number | null;
+  odAxis?: number | null;
+  odAddition?: number | null;
+  npdFarOD?: number | null;
+  pupilHeightOD?: number | null;
+
+  osSphere?: number | null;
+  osCylinder?: number | null;
+  osAxis?: number | null;
+  osAddition?: number | null;
+  npdFarOS?: number | null;
+  pupilHeightOS?: number | null;
+
+  lensType?: string;
+  lensMaterial?: string;
+  treatments?: string[];
+  bevelType?: BevelType;
+
+  frameSource?: FrameSource;
+  frameProductId?: string | null;
+  customFrameDetails?: string | null;
+
+  promisedDate?: string | null;
+  instructions?: string | null;
+}
+
+export async function createDirectWorkOrder(input: DirectWorkOrderInput) {
+  try {
+    if (!input.patientId) {
+      return { success: false, error: "Seleccione un paciente para la orden de taller." };
+    }
+
+    const currentYear = new Date().getFullYear();
+
+    // 1. Create prescription if any diopter or lens data is entered
+    let prescriptionId: string | null = null;
+    const hasDiopters =
+      input.odSphere !== undefined ||
+      input.odCylinder !== undefined ||
+      input.osSphere !== undefined ||
+      input.osCylinder !== undefined ||
+      input.lensType;
+
+    if (hasDiopters) {
+      const rxCount = await prisma.prescription.count();
+      const code = `REC-${currentYear}-${String(rxCount + 1).padStart(4, "0")}`;
+
+      const rx = await prisma.prescription.create({
+        data: {
+          code,
+          patientId: input.patientId,
+          odSphere: input.odSphere ?? null,
+          odCylinder: input.odCylinder ?? null,
+          odAxis: input.odAxis ? Math.round(input.odAxis) : null,
+          odAddition: input.odAddition ?? null,
+          npdFarOD: input.npdFarOD ?? null,
+          pupilHeightOD: input.pupilHeightOD ?? null,
+
+          osSphere: input.osSphere ?? null,
+          osCylinder: input.osCylinder ?? null,
+          osAxis: input.osAxis ? Math.round(input.osAxis) : null,
+          osAddition: input.osAddition ?? null,
+          npdFarOS: input.npdFarOS ?? null,
+          pupilHeightOS: input.pupilHeightOS ?? null,
+
+          lensType: (input.lensType as LensType) || "MONOFOCAL",
+          lensMaterial: (input.lensMaterial as LensMaterial) || "ORGANIC_CR39",
+          treatments: input.treatments || [],
+          notes: input.instructions || "Receta generada directamente para taller",
+        },
+      });
+      prescriptionId = rx.id;
+    }
+
+    // 2. Generate consecutive OT Number: OT-YYYY-XXXX
+    const count = await prisma.workOrder.count();
+    const orderNumber = `OT-${currentYear}-${String(count + 1).padStart(4, "0")}`;
+
+    const customLensDetails = `${input.lensType || "Monofocal"} ${input.lensMaterial || "Orgánico CR-39"}${
+      input.treatments && input.treatments.length > 0 ? ` (${input.treatments.join(", ")})` : ""
+    }`;
+
+    const workOrder = await prisma.workOrder.create({
+      data: {
+        orderNumber,
+        patientId: input.patientId,
+        prescriptionId,
+        status: "PENDING",
+        frameSource: input.frameSource || "STORE_INVENTORY",
+        frameProductId: input.frameProductId || null,
+        customFrameDetails: input.customFrameDetails || null,
+        customLensDetails,
+        treatments: input.treatments || [],
+        bevelType: input.bevelType || "CLASSIC_BEVEL",
+        promisedDate: input.promisedDate ? new Date(input.promisedDate) : null,
+        instructions: input.instructions || null,
+
+        history: {
+          create: {
+            fromStatus: "PENDING",
+            toStatus: "PENDING",
+            notes: "Orden de taller creada manualmente con graduación técnica",
+          },
+        },
+      },
+      include: {
+        patient: true,
+        prescription: true,
+        frameProduct: true,
+      },
+    });
+
+    revalidatePath("/laboratorio");
+    revalidatePath("/");
+    revalidatePath("/catalogo");
+    return { success: true, data: workOrder };
+  } catch (error: any) {
+    console.error("Error al crear orden de taller directa:", error);
     return {
       success: false,
       error: error.message || "No se pudo generar la orden de trabajo.",
@@ -137,7 +266,7 @@ export async function updateWorkOrderStatus(
       where: { id: workOrderId },
       data: {
         status: newStatus,
-        completionDate: newStatus === "LAB_COMPLETED" ? new Date() : undefined,
+        completionDate: newStatus === "LAB_COMPLETED" || newStatus === "READY_FOR_PICKUP" ? new Date() : undefined,
         deliveryDate: newStatus === "DELIVERED" ? new Date() : undefined,
         history: {
           create: {
@@ -148,10 +277,17 @@ export async function updateWorkOrderStatus(
           },
         },
       },
+      include: {
+        patient: true,
+        prescription: true,
+        frameProduct: true,
+      },
     });
 
     revalidatePath("/laboratorio");
+    revalidatePath("/");
     revalidatePath(`/laboratorio/${workOrderId}`);
+    revalidatePath("/catalogo");
     return { success: true, data: updated };
   } catch (error: any) {
     console.error(`Error al actualizar estado de orden ${workOrderId}:`, error);
@@ -187,4 +323,3 @@ export async function trackWorkOrder(query: string) {
     return null;
   }
 }
-

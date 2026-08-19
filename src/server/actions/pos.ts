@@ -104,8 +104,10 @@ export async function createSale(data: SaleFormData) {
           : undefined,
       },
       include: {
+        patient: true,
         items: true,
         payments: true,
+        workOrders: true,
       },
     });
 
@@ -131,9 +133,59 @@ export async function createSale(data: SaleFormData) {
       }
     }
 
+    // Automatic creation of WorkOrder in laboratory if sale includes prescription or frame/lenses
+    const hasLabItem =
+      validated.prescriptionId ||
+      validated.items.some((it) =>
+        it.description.toLowerCase().match(/luna|cristal|armaz|montura|bifocal|progresivo|monofocal|taller|bisel/i)
+      );
+
+    if (hasLabItem) {
+      const woCount = await prisma.workOrder.count();
+      const woNumber = `OT-${currentYear}-${String(woCount + 1).padStart(4, "0")}`;
+
+      const promised = new Date();
+      promised.setDate(promised.getDate() + 2);
+      promised.setHours(18, 0, 0, 0);
+
+      const frameItem = validated.items.find((it) =>
+        it.description.toLowerCase().match(/montura|armaz|frame|ray-ban|oakley|clubmaster/i)
+      );
+      const lensItem = validated.items.find((it) =>
+        it.description.toLowerCase().match(/luna|cristal|bifocal|progresivo|monofocal/i)
+      );
+
+      await prisma.workOrder.create({
+        data: {
+          orderNumber: woNumber,
+          patientId: validated.patientId,
+          saleId: sale.id,
+          prescriptionId: validated.prescriptionId || null,
+          branchId: validated.branchId || null,
+          status: "PENDING",
+          frameSource: frameItem?.productId ? "STORE_INVENTORY" : "CUSTOMER_OWN_FRAME",
+          frameProductId: frameItem?.productId || null,
+          customFrameDetails: frameItem?.description || "Montura indicada en venta",
+          lensProductId: lensItem?.productId || null,
+          customLensDetails: lensItem?.description || "Lunas graduadas según receta",
+          promisedDate: promised,
+          instructions: `Generada automáticamente desde POS (Venta ${saleNumber})`,
+          history: {
+            create: {
+              fromStatus: "PENDING",
+              toStatus: "PENDING",
+              notes: `Orden generada automáticamente desde Venta ${saleNumber}`,
+            },
+          },
+        },
+      }).catch((err: any) => console.warn("Auto workOrder creation skipped:", err));
+    }
+
     revalidatePath("/pos");
     revalidatePath("/ventas");
     revalidatePath("/caja");
+    revalidatePath("/laboratorio");
+    revalidatePath("/");
     revalidatePath(`/pacientes/${validated.patientId}`);
     return { success: true, data: sale };
   } catch (error: any) {

@@ -14,6 +14,9 @@ import {
   Receipt,
   Glasses,
   Search,
+  Printer,
+  Sparkles,
+  RefreshCw,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -22,12 +25,14 @@ import { formatCurrency } from "@/lib/utils";
 import { getPatients } from "@/server/actions/patients";
 import { getProducts } from "@/server/actions/inventory";
 import { createSale } from "@/server/actions/pos";
+import { SaleSuccessReceiptModal } from "@/components/pos/sale-success-receipt-modal";
 
 export default function PosPage() {
   const router = useRouter();
   const [patients, setPatients] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
   const [selectedPatientId, setSelectedPatientId] = useState("");
+  const [productSearch, setProductSearch] = useState("");
 
   // Cart State
   const [cartItems, setCartItems] = useState<
@@ -47,8 +52,15 @@ export default function PosPage() {
   const [paymentMethod, setPaymentMethod] = useState<
     "CASH" | "CREDIT_CARD" | "DEBIT_CARD" | "BANK_TRANSFER" | "YAPE_PLIN"
   >("CASH");
+  const [cashReceived, setCashReceived] = useState<number | undefined>(undefined);
   const [referenceNumber, setReferenceNumber] = useState("");
   const [saleNotes, setSaleNotes] = useState("");
+
+  // Automatic Print Toggle (Enabled by default)
+  const [autoPrintReceipt, setAutoPrintReceipt] = useState<boolean>(true);
+
+  // Success Modal State
+  const [completedSale, setCompletedSale] = useState<any | null>(null);
 
   const [isProcessing, setIsProcessing] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
@@ -170,34 +182,58 @@ export default function PosPage() {
               notes:
                 balanceDue > 0
                   ? `Seña/Anticipo. Saldo restante: ${formatCurrency(balanceDue)}`
-                  : "Pago total",
+                  : "Pago total al contado",
             }
           : null,
     });
 
     setIsProcessing(false);
 
-    if (res.success) {
-      alert("¡Venta y anticipo registrados exitosamente!");
-      setCartItems([]);
-      setSelectedPatientId("");
-      setDepositAmount(0);
-      setReferenceNumber("");
-      router.push("/laboratorio");
+    if (res.success && res.data) {
+      // Find patient details for receipt
+      const currentPatient = patients.find((p) => p.id === selectedPatientId);
+      const saleWithPatient = {
+        ...res.data,
+        patient: res.data.patient || currentPatient,
+        items: res.data.items || cartItems,
+      };
+
+      setCompletedSale(saleWithPatient);
     } else {
       setServerError(res.error || "Ocurrió un error al procesar la venta.");
     }
   };
+
+  const handleResetSale = () => {
+    setCompletedSale(null);
+    setCartItems([]);
+    setSelectedPatientId("");
+    setDepositAmount(0);
+    setCashReceived(undefined);
+    setReferenceNumber("");
+    setSaleNotes("");
+    setServerError(null);
+  };
+
+  const filteredProducts = products.filter((p) => {
+    if (!productSearch.trim()) return true;
+    const q = productSearch.toLowerCase();
+    return (
+      p.name?.toLowerCase().includes(q) ||
+      p.sku?.toLowerCase().includes(q) ||
+      p.category?.toLowerCase().includes(q)
+    );
+  });
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div>
         <h2 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
-          Punto de Venta (POS) y Anticipos
+          Punto de Venta (POS) y Facturación
         </h2>
         <p className="text-sm text-slate-500">
-          Facturación, registro de anticipos/señas y control de saldo pendiente para entrega de lentes.
+          Cobro en caja, registro de anticipos/señas e impresión inmediata de tickets térmicos de 80mm.
         </p>
       </div>
 
@@ -212,18 +248,18 @@ export default function PosPage() {
         {/* Left Column: Patient & Product Selector (7 cols) */}
         <div className="lg:col-span-7 space-y-6">
           {/* Patient Selector */}
-          <Card>
+          <Card className="rounded-2xl border-slate-200 shadow-xs">
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-semibold flex items-center gap-2">
                 <User className="h-4 w-4 text-blue-600" />
-                1. Selección de Paciente
+                1. Selección de Paciente / Cliente
               </CardTitle>
             </CardHeader>
             <CardContent>
               <select
                 value={selectedPatientId}
                 onChange={(e) => setSelectedPatientId(e.target.value)}
-                className="w-full h-10 px-3 rounded-lg border border-slate-200 bg-white text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none dark:border-slate-800 dark:bg-slate-900"
+                className="w-full h-10 px-3 rounded-xl border border-slate-200 bg-white text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none dark:border-slate-800 dark:bg-slate-900"
               >
                 <option value="">-- Seleccionar Paciente --</option>
                 {patients.map((p) => (
@@ -236,19 +272,37 @@ export default function PosPage() {
           </Card>
 
           {/* Quick Product Grid */}
-          <Card>
-            <CardHeader className="pb-3 flex flex-row items-center justify-between">
+          <Card className="rounded-2xl border-slate-200 shadow-xs">
+            <CardHeader className="pb-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
               <CardTitle className="text-sm font-semibold flex items-center gap-2">
                 <Glasses className="h-4 w-4 text-blue-600" />
-                2. Catálogo Rápido
+                2. Catálogo de Monturas y Lunas
               </CardTitle>
-              <Button size="sm" variant="outline" onClick={addCustomItem} className="text-xs">
-                + Ítem Personalizado / Luna
-              </Button>
+              <div className="flex items-center gap-2">
+                <div className="relative w-48 sm:w-56">
+                  <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Buscar producto..."
+                    value={productSearch}
+                    onChange={(e) => setProductSearch(e.target.value)}
+                    className="w-full pl-8 pr-2.5 py-1 text-xs rounded-lg border border-slate-200 bg-slate-50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={addCustomItem}
+                  className="text-xs h-7 gap-1 rounded-lg"
+                >
+                  <Plus className="h-3 w-3" />
+                  + Ítem Taller
+                </Button>
+              </div>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-96 overflow-y-auto pr-1">
-                {products.map((prod) => (
+                {filteredProducts.map((prod) => (
                   <button
                     key={prod.id}
                     type="button"
@@ -291,7 +345,7 @@ export default function PosPage() {
 
         {/* Right Column: Cart, Payments & Balance (5 cols) */}
         <div className="lg:col-span-5 space-y-6">
-          <Card className="border-slate-200 shadow-md">
+          <Card className="rounded-2xl border-slate-200 shadow-md">
             <CardHeader className="pb-3 border-b border-slate-100 dark:border-slate-800">
               <CardTitle className="text-base flex items-center justify-between">
                 <span className="flex items-center gap-2">
@@ -303,7 +357,7 @@ export default function PosPage() {
 
             <CardContent className="pt-4 space-y-4">
               {/* Items in Cart */}
-              <div className="space-y-3 max-h-60 overflow-y-auto pr-1">
+              <div className="space-y-3 max-h-56 overflow-y-auto pr-1">
                 {cartItems.length === 0 ? (
                   <div className="text-center py-8 text-slate-400 text-sm">
                     El carrito está vacío. Selecciona productos del catálogo.
@@ -312,7 +366,7 @@ export default function PosPage() {
                   cartItems.map((item, index) => (
                     <div
                       key={index}
-                      className="flex items-center justify-between p-2.5 rounded-lg bg-slate-50 border border-slate-100 dark:bg-slate-900 dark:border-slate-800 text-xs"
+                      className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-100 dark:bg-slate-900 dark:border-slate-800 text-xs"
                     >
                       <div className="flex-1 pr-2">
                         <input
@@ -430,7 +484,7 @@ export default function PosPage() {
                 </div>
               </div>
 
-              {/* Payment Method */}
+              {/* Payment Method & Cash Change */}
               <div className="space-y-2">
                 <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block">
                   Método de Pago
@@ -438,7 +492,7 @@ export default function PosPage() {
                 <select
                   value={paymentMethod}
                   onChange={(e) => setPaymentMethod(e.target.value as any)}
-                  className="w-full h-10 px-3 rounded-lg border border-slate-200 bg-white text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none dark:border-slate-800 dark:bg-slate-900"
+                  className="w-full h-10 px-3 rounded-xl border border-slate-200 bg-white text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none dark:border-slate-800 dark:bg-slate-900"
                 >
                   <option value="CASH">Efectivo</option>
                   <option value="CREDIT_CARD">Tarjeta de Crédito</option>
@@ -447,13 +501,53 @@ export default function PosPage() {
                   <option value="BANK_TRANSFER">Transferencia Bancaria</option>
                 </select>
 
+                {paymentMethod === "CASH" && (
+                  <div className="p-3 rounded-xl bg-emerald-50/60 border border-emerald-200/80 space-y-1.5">
+                    <div className="flex justify-between items-center text-xs font-semibold text-emerald-900">
+                      <span>Efectivo Entregado por Cliente:</span>
+                      <input
+                        type="number"
+                        step="1"
+                        placeholder="Ej: 100"
+                        value={cashReceived || ""}
+                        onChange={(e) => setCashReceived(e.target.value ? Number(e.target.value) : undefined)}
+                        className="w-24 px-2 py-1 text-right font-mono font-bold text-xs rounded-lg border border-emerald-300 bg-white"
+                      />
+                    </div>
+                    {cashReceived !== undefined && cashReceived > actualPaid && (
+                      <div className="flex justify-between items-center text-xs font-bold text-emerald-700 pt-1 border-t border-emerald-200">
+                        <span>Vuelto a Entregar:</span>
+                        <span className="font-mono text-sm">{formatCurrency(cashReceived - actualPaid)}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 <input
                   type="text"
                   placeholder="N° Operación / Referencia (Opcional)"
                   value={referenceNumber}
                   onChange={(e) => setReferenceNumber(e.target.value)}
-                  className="w-full h-9 px-3 text-xs rounded-lg border border-slate-200 bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none dark:border-slate-800 dark:bg-slate-900"
+                  className="w-full h-9 px-3 text-xs rounded-xl border border-slate-200 bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none dark:border-slate-800 dark:bg-slate-900"
                 />
+              </div>
+
+              {/* Automatic Print Checkbox */}
+              <div className="flex items-center gap-2 pt-1">
+                <input
+                  type="checkbox"
+                  id="autoPrintReceipt"
+                  checked={autoPrintReceipt}
+                  onChange={(e) => setAutoPrintReceipt(e.target.checked)}
+                  className="h-4 w-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300"
+                />
+                <label
+                  htmlFor="autoPrintReceipt"
+                  className="text-xs text-slate-700 select-none cursor-pointer flex items-center gap-1.5 font-medium"
+                >
+                  <Printer className="h-3.5 w-3.5 text-blue-600" />
+                  Imprimir ticket automáticamente al cobrar
+                </label>
               </div>
             </CardContent>
 
@@ -461,7 +555,7 @@ export default function PosPage() {
               <Button
                 onClick={handleCheckout}
                 disabled={isProcessing || cartItems.length === 0}
-                className="w-full h-12 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-base shadow-md gap-2"
+                className="w-full h-12 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-base shadow-md gap-2 rounded-xl"
               >
                 <CheckCircle2 className="h-5 w-5" />
                 {isProcessing
@@ -472,6 +566,17 @@ export default function PosPage() {
           </Card>
         </div>
       </div>
+
+      {/* Immediate Sale Success & 80mm Thermal Receipt Print Modal */}
+      {completedSale && (
+        <SaleSuccessReceiptModal
+          sale={completedSale}
+          cashReceived={cashReceived}
+          autoPrint={autoPrintReceipt}
+          onClose={() => setCompletedSale(null)}
+          onNewSale={handleResetSale}
+        />
+      )}
     </div>
   );
 }
