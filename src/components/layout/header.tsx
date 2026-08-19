@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, Search, Store, Menu } from "lucide-react";
+import { Bell, Search, Store, Menu, ExternalLink } from "lucide-react";
 
 interface HeaderProps {
   onOpenMobileMenu?: () => void;
@@ -33,9 +33,21 @@ export function Header({ onOpenMobileMenu }: HeaderProps) {
       </div>
 
       {/* Right controls */}
-      <div className="flex items-center gap-2.5 sm:gap-4 ml-4">
+      <div className="flex items-center gap-2.5 sm:gap-3 ml-4 shrink-0">
+        {/* View Web Catalog Button (Opens in new tab) */}
+        <a
+          href="/catalogo"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="hidden sm:flex items-center gap-1.5 rounded-xl border border-slate-200/90 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs hover:bg-blue-50/80 hover:border-blue-300 hover:text-blue-700 transition-all dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+          title="Abrir tienda y catálogo online para pacientes en pestaña nueva"
+        >
+          <span>Ver Tienda / Catálogo Web</span>
+          <ExternalLink className="h-3.5 w-3.5 text-blue-600 shrink-0" />
+        </a>
+
         {/* Branch Selector Badge */}
-        <div className="hidden sm:flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-blue-50/50 hover:border-blue-200 hover:text-blue-700 transition-all cursor-pointer dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
+        <div className="hidden md:flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-blue-50/50 hover:border-blue-200 hover:text-blue-700 transition-all cursor-pointer dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
           <Store className="h-3.5 w-3.5 text-blue-600 shrink-0" />
           <span className="truncate max-w-[140px] md:max-w-none">Sede Miraflores</span>
         </div>
