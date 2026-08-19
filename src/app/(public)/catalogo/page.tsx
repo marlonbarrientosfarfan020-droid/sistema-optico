@@ -33,112 +33,6 @@ import { formatCurrency } from "@/lib/utils";
 import { trackWorkOrder } from "@/server/actions/work-orders";
 import { getPublicCatalogProducts } from "@/server/actions/inventory";
 
-// Curated Showcase Fallback Products
-const INITIAL_CURATED_FRAMES = [
-  {
-    id: "prod-1",
-    sku: "FRM-RB5154",
-    name: "Ray-Ban Clubmaster Classic",
-    brand: "Ray-Ban",
-    category: "FRAME",
-    faceShape: "OVALADO / CUADRADO",
-    style: "Clubmaster",
-    material: "Acetato & Metal Dorado",
-    measurements: "51□21-145",
-    color: "Negro Brillante / Oro",
-    price: 349,
-    originalPrice: 420,
-    isNew: true,
-    tag: "Más Vendido",
-    imageUrl: "https://images.unsplash.com/photo-1511499767150-a48a237f0083?w=800&auto=format&fit=crop&q=80",
-  },
-  {
-    id: "prod-2",
-    sku: "FRM-OAK-PITCH",
-    name: "Oakley Pitchman R Satin",
-    brand: "Oakley",
-    category: "FRAME",
-    faceShape: "REDONDO / CORAZÓN",
-    style: "Redonda Clásica",
-    material: "O-Matter & Acero Inoxidable",
-    measurements: "50□19-140",
-    color: "Satin Black / Gris Mate",
-    price: 389,
-    originalPrice: 450,
-    isNew: true,
-    tag: "Ultra Ligero",
-    imageUrl: "https://images.unsplash.com/photo-1572635196237-14b3f281503f?w=800&auto=format&fit=crop&q=80",
-  },
-  {
-    id: "prod-3",
-    sku: "FRM-GUCCI-CAT",
-    name: "Gucci Glamour Cat-Eye",
-    brand: "Gucci",
-    category: "FRAME",
-    faceShape: "CORAZÓN / DIAMANTE",
-    style: "Cat Eye",
-    material: "Acetato Italiano Biselado",
-    measurements: "53□17-140",
-    color: "Carey Havana / Oro",
-    price: 490,
-    originalPrice: 560,
-    isNew: false,
-    tag: "Colección Mujer",
-    imageUrl: "https://images.unsplash.com/photo-1508296695146-257a814070b4?w=800&auto=format&fit=crop&q=80",
-  },
-  {
-    id: "prod-4",
-    sku: "FRM-SILH-TITAN",
-    name: "Silhouette Minimal Titan Al Aire",
-    brand: "Silhouette",
-    category: "FRAME",
-    faceShape: "TODOS LOS ROSTROS",
-    style: "Al Aire / Sin Marco",
-    material: "Titanio Aeroespacial High-Flex",
-    measurements: "52□18-145",
-    color: "Plata Titanio / Azul Cristal",
-    price: 520,
-    originalPrice: 610,
-    isNew: true,
-    tag: "Sin Montura",
-    imageUrl: "https://images.unsplash.com/photo-1591076482161-42ce6da69f67?w=800&auto=format&fit=crop&q=80",
-  },
-  {
-    id: "prod-5",
-    sku: "SUN-PERSOL-714",
-    name: "Persol 714 Plegable Polarized",
-    brand: "Persol",
-    category: "SUNGLASSES",
-    faceShape: "OVALADO / RECTANGULAR",
-    style: "Aviador Plegable",
-    material: "Acetato de Celulosa Hecho a Mano",
-    measurements: "54□21-140",
-    color: "Havana Oscuro / Cristal Verde Polarizado",
-    price: 460,
-    originalPrice: 530,
-    isNew: false,
-    tag: "Lente de Sol",
-    imageUrl: "https://images.unsplash.com/photo-1577803645773-f96470509666?w=800&auto=format&fit=crop&q=80",
-  },
-  {
-    id: "prod-6",
-    sku: "FRM-TR90-SPORT",
-    name: "OptiCore Active Pro TR-90",
-    brand: "OptiCore Lab",
-    category: "FRAME",
-    faceShape: "CUADRADO / OVALADO",
-    style: "Deportivo Rectangular",
-    material: "TR-90 Grilamid Anti-Impacto",
-    measurements: "55□17-142",
-    color: "Azul Marino / Terminales Goma",
-    price: 240,
-    originalPrice: 290,
-    isNew: true,
-    tag: "Anti-Caídas",
-    imageUrl: "https://images.unsplash.com/photo-1509695507497-903c140c43b0?w=800&auto=format&fit=crop&q=80",
-  },
-];
-
 export default function CatalogoPublicoPage() {
   const [productsList, setProductsList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -152,36 +46,38 @@ export default function CatalogoPublicoPage() {
   const [isSearchingTrack, setIsSearchingTrack] = useState(false);
   const [trackError, setTrackError] = useState<string | null>(null);
 
-  // Fetch real synchronized products from Database (Vercel Blob images)
+  // Fetch real synchronized products 100% from PostgreSQL Database
   useEffect(() => {
     async function loadProducts() {
       try {
         const dbProducts = await getPublicCatalogProducts();
-        if (dbProducts && dbProducts.length > 0) {
-          const mappedDbProducts = dbProducts.map((p: any) => ({
+        if (dbProducts && Array.isArray(dbProducts)) {
+          const mapped = dbProducts.map((p: any) => ({
             id: p.id,
             sku: p.sku,
             name: p.name,
-            brand: p.brandRef?.name || (p.name.split(" ")[0] || "OptiCore"),
+            brand: p.brandRef?.name || p.name.split(" ")[0] || "OptiCore",
             category: p.category === "FRAME" ? "FRAME" : "SUNGLASSES",
             faceShape: "TODOS LOS ROSTROS",
-            style: p.frameModel || "Diseño Oftálmico",
-            material: p.frameMaterial || "Acetato Premium",
-            measurements: `${p.frameEyeSize || 52}□${p.frameBridge || 18}-${p.frameTemple || 140}`,
-            color: p.frameColor || "Acabado Especial",
-            price: Number(p.salePrice),
-            originalPrice: Number(p.salePrice) * 1.2,
-            isNew: true,
+            style: p.frameModel || "Montura Oftálmica",
+            material: p.frameMaterial || "Acetato / Metal",
+            measurements:
+              p.frameEyeSize || p.frameBridge || p.frameTemple
+                ? `${p.frameEyeSize || 52}□${p.frameBridge || 18}-${p.frameTemple || 140}`
+                : "Talla Estándar",
+            color: p.frameColor || "Color Especial",
+            price: Number(p.salePrice) || 0,
+            originalPrice: Number(p.salePrice) > 0 ? Number(p.salePrice) * 1.15 : 0,
             tag: p.category === "FRAME" ? "Oftálmico" : "Destacado",
             imageUrl: p.imageUrl || null,
           }));
-          setProductsList([...mappedDbProducts, ...INITIAL_CURATED_FRAMES]);
+          setProductsList(mapped);
         } else {
-          setProductsList(INITIAL_CURATED_FRAMES);
+          setProductsList([]);
         }
       } catch (err) {
         console.error("Error al cargar productos públicos:", err);
-        setProductsList(INITIAL_CURATED_FRAMES);
+        setProductsList([]);
       } finally {
         setLoading(false);
       }
@@ -199,7 +95,7 @@ export default function CatalogoPublicoPage() {
     const matchShape =
       selectedShape === "TODAS" ||
       item.style.toLowerCase().includes(selectedShape.toLowerCase()) ||
-      item.faceShape.toLowerCase().includes(selectedShape.toLowerCase());
+      item.name.toLowerCase().includes(selectedShape.toLowerCase());
 
     const matchQuery =
       searchFilter === "" ||
@@ -251,6 +147,9 @@ export default function CatalogoPublicoPage() {
     setSearchFilter("");
   };
 
+  // Featured Hero Frame (the latest product or placeholder)
+  const featuredProduct = productsList.find((p) => p.imageUrl) || productsList[0];
+
   return (
     <div className="space-y-16 sm:space-y-20 pb-20">
       {/* 1. Header Flotante Glassmorphism */}
@@ -271,7 +170,7 @@ export default function CatalogoPublicoPage() {
           {/* Center Links */}
           <div className="hidden md:flex items-center gap-6 text-xs font-semibold text-slate-300">
             <a href="#catalogo" className="hover:text-blue-400 transition-colors">
-              Catálogo 2026
+              Catálogo en Vivo
             </a>
             <a href="#rastreo" className="hover:text-cyan-400 transition-colors flex items-center gap-1.5">
               <Sparkles className="h-3.5 w-3.5 text-cyan-400" /> Rastrear mis Lentes
@@ -369,33 +268,52 @@ export default function CatalogoPublicoPage() {
               <div className="relative rounded-3xl border border-slate-700/60 bg-gradient-to-b from-slate-900/90 to-slate-950 p-6 shadow-2xl backdrop-blur-xl space-y-4">
                 <div className="flex items-center justify-between">
                   <Badge className="bg-blue-600 text-white font-bold text-xs px-2.5 py-0.5">
-                    Novedad 2026
+                    {featuredProduct?.tag || "Novedad 2026"}
                   </Badge>
                   <span className="text-xs font-mono font-semibold text-cyan-400">
-                    FRM-RB5154
+                    {featuredProduct?.sku || "OPTICORE-2026"}
                   </span>
                 </div>
 
                 <div className="relative h-56 w-full rounded-2xl overflow-hidden bg-slate-950/60 border border-slate-800 flex items-center justify-center p-4">
-                  <Image
-                    src="https://images.unsplash.com/photo-1511499767150-a48a237f0083?w=800&auto=format&fit=crop&q=80"
-                    alt="Montura de Lujo Ray-Ban Clubmaster"
-                    fill
-                    priority
-                    sizes="(max-width: 768px) 100vw, 450px"
-                    className="object-cover object-center rounded-xl hover:scale-105 transition-transform duration-500"
-                  />
+                  {featuredProduct?.imageUrl ? (
+                    <Image
+                      src={featuredProduct.imageUrl}
+                      alt={featuredProduct.name || "Montura Destacada"}
+                      fill
+                      priority
+                      sizes="(max-width: 768px) 100vw, 450px"
+                      className="object-cover object-center rounded-xl hover:scale-105 transition-transform duration-500"
+                    />
+                  ) : (
+                    <div className="flex flex-col items-center justify-center text-slate-500 gap-2">
+                      <Glasses className="h-16 w-16 text-blue-500 animate-pulse" />
+                      <span className="text-xs font-semibold text-slate-400">Colección Exclusiva OptiCore</span>
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex items-center justify-between pt-2">
                   <div>
-                    <h3 className="font-bold text-base text-white">Ray-Ban Clubmaster Gold</h3>
-                    <p className="text-xs text-slate-400">Acetato Italiano & Metal Grabado</p>
+                    <h3 className="font-bold text-base text-white">
+                      {featuredProduct?.name || "Monturas de Alta Precisión"}
+                    </h3>
+                    <p className="text-xs text-slate-400">
+                      {featuredProduct?.material || "Acetato & Titanio Aeroespacial"}
+                    </p>
                   </div>
-                  <div className="text-right">
-                    <p className="text-lg font-extrabold text-emerald-400 font-mono">S/ 349.00</p>
-                    <p className="text-[11px] text-slate-500 line-through">S/ 420.00</p>
-                  </div>
+                  {featuredProduct?.price ? (
+                    <div className="text-right">
+                      <p className="text-lg font-extrabold text-emerald-400 font-mono">
+                        {formatCurrency(featuredProduct.price)}
+                      </p>
+                      {featuredProduct.originalPrice > featuredProduct.price && (
+                        <p className="text-[11px] text-slate-500 line-through">
+                          {formatCurrency(featuredProduct.originalPrice)}
+                        </p>
+                      )}
+                    </div>
+                  ) : null}
                 </div>
               </div>
             </motion.div>
@@ -407,13 +325,13 @@ export default function CatalogoPublicoPage() {
       <section id="catalogo" className="max-w-7xl mx-auto px-4 sm:px-6 space-y-8">
         <div className="text-center space-y-2">
           <Badge variant="outline" className="border-blue-500/40 text-blue-400 text-xs px-3 py-1">
-            Catálogo Interactivo en Vivo ({filteredProducts.length} Modelos)
+            Catálogo en Tiempo Real ({filteredProducts.length} Modelos Disponibles)
           </Badge>
           <h2 className="text-3xl sm:text-4xl font-extrabold text-white">
             Encuentra tu Montura Ideal
           </h2>
           <p className="text-sm text-slate-400 max-w-xl mx-auto">
-            Filtra por estilo de montura, forma de rostro o busca por tu marca favorita.
+            Filtra por estilo de montura, material o busca por tu marca favorita.
           </p>
         </div>
 
@@ -447,7 +365,7 @@ export default function CatalogoPublicoPage() {
               <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-500" />
               <input
                 type="text"
-                placeholder="Buscar Ray-Ban, Cat Eye, SKU..."
+                placeholder="Buscar por Nombre, Marca, SKU..."
                 value={searchFilter}
                 onChange={(e) => setSearchFilter(e.target.value)}
                 className="w-full h-9 pl-9 pr-3 rounded-xl border border-slate-800 bg-slate-950 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -455,10 +373,10 @@ export default function CatalogoPublicoPage() {
             </div>
           </div>
 
-          {/* Face Shape Filters */}
+          {/* Style Filters */}
           <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-slate-800/80">
-            <span className="text-xs font-semibold text-slate-400 mr-2">Forma / Estilo:</span>
-            {["TODAS", "Cat Eye", "Aviador", "Redonda", "Al Aire", "Clubmaster"].map((shape) => (
+            <span className="text-xs font-semibold text-slate-400 mr-2">Estilo / Silueta:</span>
+            {["TODAS", "Cat Eye", "Aviador", "Redonda", "Cuadrada", "Al Aire", "Clubmaster"].map((shape) => (
               <button
                 key={shape}
                 type="button"
@@ -475,10 +393,10 @@ export default function CatalogoPublicoPage() {
           </div>
         </div>
 
-        {/* 4. Product Cards Grid & Loading / Empty States */}
+        {/* 4. Product Cards Grid (FORCED 3-COLUMNS ON DESKTOP) */}
         {loading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[1, 2, 3, 4, 5, 6].map((sk) => (
+            {[1, 2, 3].map((sk) => (
               <div
                 key={sk}
                 className="rounded-3xl border border-slate-800 bg-slate-900/40 p-5 space-y-4 animate-pulse"
@@ -494,21 +412,39 @@ export default function CatalogoPublicoPage() {
         ) : filteredProducts.length === 0 ? (
           <div className="flex flex-col items-center justify-center p-12 text-center rounded-3xl border border-slate-800 bg-slate-900/40 space-y-4">
             <div className="h-14 w-14 rounded-2xl bg-blue-500/10 text-blue-400 flex items-center justify-center">
-              <SearchX className="h-7 w-7" />
+              <Glasses className="h-7 w-7" />
             </div>
-            <h3 className="text-lg font-bold text-white">No encontramos monturas con estos filtros</h3>
+            <h3 className="text-lg font-bold text-white">
+              {searchFilter || selectedCategory !== "TODAS" || selectedShape !== "TODAS"
+                ? "No encontramos monturas con estos filtros"
+                : "Catálogo en actualización"}
+            </h3>
             <p className="text-xs text-slate-400 max-w-sm">
-              Prueba seleccionando otra categoría o limpiando los términos de búsqueda en el catálogo.
+              {searchFilter || selectedCategory !== "TODAS" || selectedShape !== "TODAS"
+                ? "Prueba cambiando los filtros de búsqueda o limpiando la selección."
+                : "Nuevas monturas están siendo registradas en el taller. ¡Contáctanos por WhatsApp para consultar disponibilidad inmediata!"}
             </p>
-            <Button
-              onClick={handleResetFilters}
-              variant="outline"
-              size="sm"
-              className="rounded-xl border-slate-700 text-xs text-slate-200 hover:text-white gap-2"
-            >
-              <RotateCcw className="h-3.5 w-3.5" />
-              Restablecer Filtros
-            </Button>
+            {searchFilter || selectedCategory !== "TODAS" || selectedShape !== "TODAS" ? (
+              <Button
+                onClick={handleResetFilters}
+                variant="outline"
+                size="sm"
+                className="rounded-xl border-slate-700 text-xs text-slate-200 hover:text-white gap-2"
+              >
+                <RotateCcw className="h-3.5 w-3.5" />
+                Restablecer Filtros
+              </Button>
+            ) : (
+              <a
+                href="https://wa.me/51987654321?text=Hola%20OptiCore,%20deseo%20consultar%20modelos%20de%20monturas%20disponibles"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-2 shadow-lg shadow-emerald-600/25"
+              >
+                <MessageCircle className="h-4 w-4" />
+                Consultar por WhatsApp
+              </a>
+            )}
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
