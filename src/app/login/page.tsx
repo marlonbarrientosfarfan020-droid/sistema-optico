@@ -10,15 +10,15 @@ import {
   ArrowRight,
   ShieldCheck,
   AlertCircle,
-  Sparkles,
+  Code2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { login } from "@/server/actions/auth";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("marlon.barrientos@opticacore.com");
-  const [password, setPassword] = useState("1234");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -58,7 +58,10 @@ export default function LoginPage() {
             <Eye className="h-8 w-8" />
           </div>
           <h1 className="text-3xl font-extrabold tracking-tight text-white flex items-center justify-center gap-2">
-            OptiCore <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">PRO</span>
+            OptiCore{" "}
+            <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">
+              PRO
+            </span>
           </h1>
           <p className="text-sm text-slate-400">
             Sistema Integral para Clínicas Oftálmicas, Ópticas y Laboratorio
@@ -126,7 +129,7 @@ export default function LoginPage() {
             <Button
               type="submit"
               disabled={loading}
-              className="w-full h-11 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white font-semibold text-sm rounded-xl shadow-lg shadow-blue-600/30 gap-2 transition-all"
+              className="w-full h-11 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white font-semibold text-sm rounded-xl shadow-lg shadow-blue-600/30 gap-2 transition-all cursor-pointer"
             >
               {loading ? (
                 "Verificando..."
@@ -137,43 +140,20 @@ export default function LoginPage() {
               )}
             </Button>
           </form>
-
-          {/* Quick Demo Access Helpers */}
-          <div className="pt-4 border-t border-slate-800/80 text-xs text-slate-400 space-y-2">
-            <p className="font-semibold text-slate-300 flex items-center gap-1.5 text-[11px] uppercase tracking-wider">
-              <Sparkles className="h-3.5 w-3.5 text-amber-400" /> Acceso Rápido Demo:
-            </p>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setEmail("marlon.barrientos@opticacore.com");
-                  setPassword("1234");
-                }}
-                className="p-2 rounded-lg bg-slate-800/60 hover:bg-slate-800 border border-slate-700/50 text-left transition-colors"
-              >
-                <p className="font-semibold text-white text-[11px]">Marlon Barrientos</p>
-                <p className="text-[10px] text-slate-400">Admin • Clave: 1234</p>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setEmail("dr.reyes@opticacore.com");
-                  setPassword("demo123456");
-                }}
-                className="p-2 rounded-lg bg-slate-800/60 hover:bg-slate-800 border border-slate-700/50 text-left transition-colors"
-              >
-                <p className="font-semibold text-white text-[11px]">Dr. Reyes</p>
-                <p className="text-[10px] text-slate-400">Optometría • Clave: demo123456</p>
-              </button>
-            </div>
-          </div>
         </div>
 
-        {/* Footer */}
-        <div className="flex items-center justify-center gap-2 text-xs text-slate-500">
-          <ShieldCheck className="h-4 w-4 text-emerald-500" />
-          <span>Acceso Seguro con Encriptación SSL & Roles OptiCore</span>
+        {/* Professional Footer & Security Signature */}
+        <div className="text-center space-y-2 pt-2">
+          <div className="flex items-center justify-center gap-2 text-xs text-slate-400">
+            <Code2 className="h-4 w-4 text-blue-400" />
+            <span className="font-medium">
+              Desarrollado por <strong className="text-slate-200">Ing. Marlon Barrientos Farfán</strong>
+            </span>
+          </div>
+          <div className="flex items-center justify-center gap-1.5 text-[11px] text-slate-500">
+            <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" />
+            <span>Software Engineer • OptiCore Enterprise v1.0</span>
+          </div>
         </div>
       </div>
     </div>

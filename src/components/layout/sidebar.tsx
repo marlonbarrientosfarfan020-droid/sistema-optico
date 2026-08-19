@@ -16,6 +16,8 @@ import {
   Building2,
   LogOut,
   X,
+  ExternalLink,
+  Store,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { logout, getSession, SessionUser } from "@/server/actions/auth";
@@ -99,7 +101,7 @@ export function Sidebar({ onCloseMobile }: SidebarProps) {
           <button
             type="button"
             onClick={onCloseMobile}
-            className="md:hidden p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800"
+            className="md:hidden p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
           >
             <X className="h-5 w-5" />
           </button>
@@ -107,7 +109,24 @@ export function Sidebar({ onCloseMobile }: SidebarProps) {
       </div>
 
       {/* Navigation Links */}
-      <div className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
+      <div className="flex-1 overflow-y-auto px-3 py-3 space-y-1">
+        {/* Prominent Direct Link to Web Catalog (Visible on mobile and desktop sidebar) */}
+        <div className="pb-2">
+          <a
+            href="/catalogo"
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={onCloseMobile}
+            className="flex items-center justify-between gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-3 py-2.5 text-xs font-bold text-white shadow-md shadow-blue-500/20 hover:from-blue-700 hover:to-indigo-700 transition-all group"
+          >
+            <span className="flex items-center gap-2 truncate">
+              <span className="text-sm">🛍️</span>
+              <span className="truncate">Ver Tienda / Catálogo Web</span>
+            </span>
+            <ExternalLink className="h-3.5 w-3.5 shrink-0 opacity-80 group-hover:opacity-100 transition-opacity" />
+          </a>
+        </div>
+
         {navigationItems.map((item) => {
           const isActive =
             item.href === "/"
