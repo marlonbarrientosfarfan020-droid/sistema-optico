@@ -1,0 +1,516 @@
+// Prisma schema for Sistema Óptico (SaaS / POS + Ficha Clínica)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// -------------------------------------------------------------------------
+// ENUMS
+// -------------------------------------------------------------------------
+
+enum UserRole {
+  ADMIN
+  OPTOMETRIST
+  SALES_AGENT
+  LAB_TECHNICIAN
+}
+
+enum DocumentType {
+  DNI
+  CE
+  PASSPORT
+  RUC
+  OTHER
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+  PREFER_NOT_TO_SAY
+}
+
+enum ProductCategory {
+  FRAME
+  OPHTHALMIC_LENS
+  CONTACT_LENS
+  ACCESSORY
+  SOLUTION
+  SERVICE
+}
+
+enum OrderStatus {
+  PENDING
+  IN_LAB
+  LAB_COMPLETED
+  READY_FOR_PICKUP
+  DELIVERED
+  CANCELLED
+}
+
+enum FrameSource {
+  STORE_INVENTORY
+  CUSTOMER_OWN_FRAME
+}
+
+enum SaleStatus {
+  DRAFT
+  PARTIAL
+  COMPLETED
+  CANCELLED
+  REFUNDED
+}
+
+enum PaymentMethod {
+  CASH
+  CREDIT_CARD
+  DEBIT_CARD
+  BANK_TRANSFER
+  YAPE_PLIN
+  OTHER
+}
+
+enum PaymentType {
+  FULL_PAYMENT
+  ADVANCE_DEPOSIT
+  BALANCE_SETTLEMENT
+}
+
+enum LensType {
+  MONOFOCAL
+  BIFOCAL
+  PROGRESSIVE
+  OCCUPATIONAL
+  CONTACT_LENS
+  OTHER
+}
+
+enum LensMaterial {
+  ORGANIC_CR39
+  POLYCARBONATE
+  HIGH_INDEX_1_60
+  HIGH_INDEX_1_67
+  HIGH_INDEX_1_74
+  MINERAL_GLASS
+  TRIVEX
+  SILICONE_HYDROGEL
+}
+
+enum BevelType {
+  CLASSIC_BEVEL
+  GROOVED_RIMLESS
+  DRILLED_RIMLESS
+  FLAT
+}
+
+enum MovementType {
+  INITIAL
+  PURCHASE
+  SALE
+  ADJUSTMENT
+  RETURN
+}
+
+// -------------------------------------------------------------------------
+// MODELS: USERS & BRANCHES
+// -------------------------------------------------------------------------
+
+model Branch {
+  id        String   @id @default(cuid())
+  name      String
+  code      String   @unique
+  address   String?
+  phone     String?
+  email     String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users                User[]
+  patients             Patient[]
+  prescriptions        Prescription[]
+  products             Product[]
+  sales                Sale[]
+  workOrders           WorkOrder[]
+  cashRegisterSessions CashRegisterSession[]
+
+  @@map("branches")
+}
+
+model User {
+  id           String    @id @default(cuid())
+  name         String
+  email        String    @unique
+  passwordHash String
+  role         UserRole  @default(SALES_AGENT)
+  phone        String?
+  branchId     String?
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  branch                   Branch?               @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  prescriptionsWritten     Prescription[]        @relation("OptometristPrescriptions")
+  sales                    Sale[]                @relation("UserSales")
+  workOrdersAssigned       WorkOrder[]           @relation("LabTechnicianOrders")
+  workOrderHistoryChanges  WorkOrderHistory[]    @relation("UserOrderChanges")
+  paymentsReceived         Payment[]             @relation("UserPayments")
+  cashRegisterSessions     CashRegisterSession[] @relation("UserCashSessions")
+
+  @@map("users")
+}
+
+// -------------------------------------------------------------------------
+// MODELS: PATIENTS & CLINICAL HISTORY / PRESCRIPTIONS
+// -------------------------------------------------------------------------
+
+model Patient {
+  id             String       @id @default(cuid())
+  documentType   DocumentType @default(DNI)
+  documentId     String
+  firstName      String
+  lastName       String
+  email          String?
+  phone          String?
+  address        String?
+  birthDate      DateTime?
+  gender         Gender       @default(PREFER_NOT_TO_SAY)
+  occupation     String?
+  medicalHistory Json?        // e.g. { hasDiabetes: false, hasHypertension: false, hasGlaucoma: false, allergies: "", notes: "" }
+  branchId       String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  branch        Branch?        @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  prescriptions Prescription[]
+  sales         Sale[]
+  workOrders    WorkOrder[]
+
+  @@unique([documentType, documentId])
+  @@index([documentId])
+  @@index([firstName, lastName])
+  @@map("patients")
+}
+
+model Prescription {
+  id            String    @id @default(cuid())
+  code          String    @unique // e.g. REC-2026-0001
+  patientId     String
+  optometristId String?
+  branchId      String?
+  date          DateTime  @default(now())
+
+  // Ojo Derecho (OD)
+  odSphere            Float?   // Esfera (SPH)
+  odCylinder          Float?   // Cilindro (CYL)
+  odAxis              Int?     // Eje (AXIS) 0-180
+  odAddition          Float?   // Adición (ADD)
+  odPrism             Float?   // Prisma
+  odBase              String?  // Base (Arriba, Abajo, Interna, Externa)
+  odVisualAcuityFar   String?  // AV Lejos (e.g. "20/20")
+  odVisualAcuityNear  String?  // AV Cerca (e.g. "20/20" o "1.0")
+
+  // Ojo Izquierdo (OI / OS)
+  osSphere            Float?   // Esfera (SPH)
+  osCylinder          Float?   // Cilindro (CYL)
+  osAxis              Int?     // Eje (AXIS) 0-180
+  osAddition          Float?   // Adición (ADD)
+  osPrism             Float?   // Prisma
+  osBase              String?  // Base
+  osVisualAcuityFar   String?  // AV Lejos
+  osVisualAcuityNear  String?  // AV Cerca
+
+  // Medidas Pupilares y Centrado
+  pupillaryDistance   Float?   // Distancia Pupilar Total (DP mm)
+  npdFarOD            Float?   // Distancia Nasopupilar OD Lejos (DNP OD)
+  npdFarOS            Float?   // Distancia Nasopupilar OI Lejos (DNP OI)
+  npdNearOD           Float?   // Distancia Nasopupilar OD Cerca
+  npdNearOS           Float?   // Distancia Nasopupilar OI Cerca
+  pupilHeightOD       Float?   // Altura Pupilar OD (ALT OD mm)
+  pupilHeightOS       Float?   // Altura Pupilar OI (ALT OI mm)
+
+  // Recomendación óptica
+  lensType            LensType?
+  lensMaterial        LensMaterial?
+  treatments          String[]  @default([]) // ["ANTIREFLECTIVE", "BLUE_BLOCK", "PHOTOCHROMIC", "POLARIZED", "UV400"]
+  usage               String?   // "Uso Permanente", "Lectura", "Computadora / Pantallas", "Conducción"
+  notes               String?   // Diagnóstico, observaciones clínicas
+  expirationDate      DateTime? // Vigencia sugerida (normalmente 1 año)
+
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  patient      Patient     @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  optometrist  User?       @relation("OptometristPrescriptions", fields: [optometristId], references: [id], onDelete: SetNull)
+  branch       Branch?     @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  sales        Sale[]
+  workOrders   WorkOrder[]
+
+  @@index([patientId])
+  @@map("prescriptions")
+}
+
+// -------------------------------------------------------------------------
+// MODELS: INVENTORY & PRODUCTS
+// -------------------------------------------------------------------------
+
+model Category {
+  id          String    @id @default(cuid())
+  name        String    @unique
+  slug        String    @unique
+  description String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  products Product[]
+
+  @@map("categories")
+}
+
+model Brand {
+  id          String    @id @default(cuid())
+  name        String    @unique
+  slug        String    @unique
+  description String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  products Product[]
+
+  @@map("brands")
+}
+
+model Product {
+  id          String          @id @default(cuid())
+  sku         String          @unique
+  barcode     String?         @unique
+  name        String
+  description String?
+  category    ProductCategory @default(FRAME)
+  categoryId  String?
+  brandId     String?
+  branchId    String?
+
+  // Datos específicos de Monturas (Frames)
+  frameModel    String?
+  frameColor    String?
+  frameMaterial String?       // Acetato, Metal, Titanio, TR90, etc.
+  frameEyeSize  Int?          // Calibre (mm) e.g. 52
+  frameBridge   Int?          // Puente (mm) e.g. 18
+  frameTemple   Int?          // Varilla (mm) e.g. 140
+
+  // Datos específicos de Lentes de Contacto y Cristales
+  baseCurve   Float?          // Curva Base (BC) e.g. 8.6
+  diameter    Float?          // Diámetro (DIA) e.g. 14.2
+  sphereRange String?         // Rango de graduación e.g. "+6.00 a -8.00"
+
+  costPrice     Float           @default(0.0)
+  salePrice     Float           @default(0.0)
+  stock         Int             @default(0)
+  minStock      Int             @default(3)
+  imageUrl      String?
+  showInCatalog Boolean         @default(true)
+  isActive      Boolean         @default(true)
+
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  categoryRef         Category?           @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  brandRef            Brand?              @relation(fields: [brandId], references: [id], onDelete: SetNull)
+  branch              Branch?             @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  saleItems           SaleItem[]
+  workOrdersAsFrame   WorkOrder[]         @relation("WorkOrderFrameProduct")
+  workOrdersAsLens    WorkOrder[]         @relation("WorkOrderLensProduct")
+  inventoryMovements  InventoryMovement[]
+
+  @@index([sku])
+  @@index([name])
+  @@index([category])
+  @@map("products")
+}
+
+model InventoryMovement {
+  id            String       @id @default(cuid())
+  productId     String
+  type          MovementType
+  quantity      Int
+  previousStock Int
+  newStock      Int
+  reason        String?
+  referenceId   String?      // ID de venta o compra
+  createdAt     DateTime     @default(now())
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+  @@map("inventory_movements")
+}
+
+// -------------------------------------------------------------------------
+// MODELS: LABORATORY & WORK ORDERS (TALLER)
+// -------------------------------------------------------------------------
+
+model WorkOrder {
+  id              String      @id @default(cuid())
+  orderNumber     String      @unique // e.g. OT-2026-0001
+  patientId       String
+  saleId          String?
+  prescriptionId  String?
+  branchId        String?
+  labTechnicianId String?
+  externalLabName String?     // En caso de tercerizar con laboratorio externo
+
+  status          OrderStatus @default(PENDING)
+
+  // Información de la Montura
+  frameSource        FrameSource @default(STORE_INVENTORY)
+  frameProductId     String?
+  customFrameDetails String?     // Si es propia del cliente: e.g. "Montura RayBan negra usada - buen estado"
+
+  // Información de los Cristales / Lunas
+  lensProductId     String?
+  customLensDetails String?      // e.g. "Progresivo Digital Freeform 1.67 con AR Blue"
+  treatments        String[]     @default([]) // Tratamientos aplicados
+  bevelType         BevelType    @default(CLASSIC_BEVEL) // Bisel común, ranurado, taladrado al aire
+
+  // Fechas y Tiempos
+  promisedDate       DateTime?   // Fecha compromiso de entrega al paciente
+  completionDate     DateTime?   // Fecha en que el taller finalizó el trabajo
+  deliveryDate       DateTime?   // Fecha en que el paciente retiró el trabajo
+
+  // Control de Calidad e Instrucciones
+  instructions       String?     // Instrucciones técnicas para el biselador
+  qualityCheckPassed Boolean     @default(false)
+  qualityNotes       String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  patient        Patient            @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  sale           Sale?              @relation(fields: [saleId], references: [id], onDelete: SetNull)
+  prescription   Prescription?      @relation(fields: [prescriptionId], references: [id], onDelete: SetNull)
+  branch         Branch?            @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  labTechnician  User?              @relation("LabTechnicianOrders", fields: [labTechnicianId], references: [id], onDelete: SetNull)
+  frameProduct   Product?           @relation("WorkOrderFrameProduct", fields: [frameProductId], references: [id], onDelete: SetNull)
+  lensProduct    Product?           @relation("WorkOrderLensProduct", fields: [lensProductId], references: [id], onDelete: SetNull)
+  history        WorkOrderHistory[]
+
+  @@index([orderNumber])
+  @@index([status])
+  @@index([patientId])
+  @@map("work_orders")
+}
+
+model WorkOrderHistory {
+  id          String      @id @default(cuid())
+  workOrderId String
+  fromStatus  OrderStatus
+  toStatus    OrderStatus
+  changedById String?
+  notes       String?
+  createdAt   DateTime    @default(now())
+
+  workOrder WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+  changedBy User?     @relation("UserOrderChanges", fields: [changedById], references: [id], onDelete: SetNull)
+
+  @@index([workOrderId])
+  @@map("work_order_history")
+}
+
+// -------------------------------------------------------------------------
+// MODELS: POINT OF SALE (POS), SALES, PAYMENTS & CASH REGISTER
+// -------------------------------------------------------------------------
+
+model Sale {
+  id             String     @id @default(cuid())
+  saleNumber     String     @unique // e.g. VTA-2026-0001
+  patientId      String
+  branchId       String?
+  userId         String?    // Vendedor
+  prescriptionId String?
+
+  status      SaleStatus @default(COMPLETED)
+  subtotal    Float      @default(0.0)
+  discount    Float      @default(0.0)
+  tax         Float      @default(0.0)
+  totalAmount Float      @default(0.0)
+  paidAmount  Float      @default(0.0) // Monto total abonado
+  balanceDue  Float      @default(0.0) // Saldo pendiente por cobrar
+
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  patient      Patient       @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  branch       Branch?       @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  user         User?         @relation("UserSales", fields: [userId], references: [id], onDelete: SetNull)
+  prescription Prescription? @relation(fields: [prescriptionId], references: [id], onDelete: SetNull)
+  items        SaleItem[]
+  payments     Payment[]
+  workOrders   WorkOrder[]
+
+  @@index([saleNumber])
+  @@index([patientId])
+  @@index([status])
+  @@map("sales")
+}
+
+model SaleItem {
+  id          String   @id @default(cuid())
+  saleId      String
+  productId   String?
+  description String
+  quantity    Int      @default(1)
+  unitPrice   Float    @default(0.0)
+  discount    Float    @default(0.0)
+  total       Float    @default(0.0)
+
+  sale    Sale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([saleId])
+  @@map("sale_items")
+}
+
+model Payment {
+  id              String        @id @default(cuid())
+  saleId          String
+  amount          Float
+  paymentMethod   PaymentMethod @default(CASH)
+  paymentType     PaymentType   @default(FULL_PAYMENT)
+  referenceNumber String?       // Código de operación / comprobante
+  notes           String?
+  receivedById    String?
+  createdAt       DateTime      @default(now())
+
+  sale       Sale  @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  receivedBy User? @relation("UserPayments", fields: [receivedById], references: [id], onDelete: SetNull)
+
+  @@index([saleId])
+  @@map("payments")
+}
+
+model CashRegisterSession {
+  id                    String    @id @default(cuid())
+  branchId              String?
+  userId                String
+  openingAmount         Float     @default(0.0)
+  closingAmount         Float?
+  expectedClosingAmount Float?
+  actualClosingAmount   Float?
+  status                String    @default("OPEN") // OPEN, CLOSED
+  notes                 String?
+  openedAt              DateTime  @default(now())
+  closedAt              DateTime?
+
+  branch Branch? @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  user   User    @relation("UserCashSessions", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("cash_register_sessions")
+}
