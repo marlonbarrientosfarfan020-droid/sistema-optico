@@ -2,17 +2,26 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { Prisma } from "@prisma/client";
 
-export type PaymentWithSale = Prisma.PaymentGetPayload<{
-  include: {
-    sale: {
-      include: {
-        patient: true;
-      };
-    };
+export type PaymentWithSale = {
+  id: string;
+  amount: any;
+  paymentMethod: string;
+  createdAt: Date;
+  sale: {
+    id: string;
+    totalAmount: any;
+    paidAmount: any;
+    balanceAmount: any;
+    status: string;
+    patient?: {
+      id: string;
+      firstName: string;
+      lastName: string;
+      documentId?: string;
+    } | null;
   };
-}>;
+};
 
 export interface TodayCashSummary {
   payments: PaymentWithSale[];
@@ -45,7 +54,7 @@ export async function getTodayCashSummary(): Promise<TodayCashSummary> {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    const payments: PaymentWithSale[] = await prisma.payment.findMany({
+    const payments = await prisma.payment.findMany({
       where: {
         createdAt: { gte: today },
       },
@@ -83,7 +92,7 @@ export async function getTodayCashSummary(): Promise<TodayCashSummary> {
     );
 
     return {
-      payments,
+      payments: payments as unknown as PaymentWithSale[],
       cashIncome,
       cardIncome,
       digitalIncome,
@@ -112,7 +121,6 @@ export async function openCashSession(data: {
   notes?: string;
 }) {
   try {
-    // Check if there is already an open session
     const existing = await prisma.cashRegisterSession.findFirst({
       where: { status: "OPEN" },
     });
@@ -121,7 +129,6 @@ export async function openCashSession(data: {
       return { success: false, error: "Ya existe una sesión de caja abierta actualmente." };
     }
 
-    // Default user if none passed
     let user = await prisma.user.findFirst();
     if (!user) {
       user = await prisma.user.create({
