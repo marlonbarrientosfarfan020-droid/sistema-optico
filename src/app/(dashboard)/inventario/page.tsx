@@ -11,6 +11,9 @@ import {
   AlertTriangle,
   ImageIcon,
   Eye,
+  Edit3,
+  Globe,
+  Upload,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -28,6 +31,7 @@ export default function InventarioPage() {
   const [selectedCategory, setSelectedCategory] = useState<ProductCategory | "ALL">("ALL");
   const [searchQuery, setSearchQuery] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
 
   const loadData = async () => {
     setLoading(true);
@@ -40,6 +44,16 @@ export default function InventarioPage() {
   useEffect(() => {
     loadData();
   }, [selectedCategory, searchQuery]);
+
+  const handleOpenCreateModal = () => {
+    setSelectedProduct(null);
+    setIsModalOpen(true);
+  };
+
+  const handleOpenEditModal = (product: any) => {
+    setSelectedProduct(product);
+    setIsModalOpen(true);
+  };
 
   return (
     <div className="space-y-6">
@@ -54,7 +68,7 @@ export default function InventarioPage() {
           </p>
         </div>
         <Button
-          onClick={() => setIsModalOpen(true)}
+          onClick={handleOpenCreateModal}
           className="bg-blue-600 hover:bg-blue-700 shadow-sm gap-2 text-white"
         >
           <Plus className="h-4 w-4" />
@@ -132,10 +146,10 @@ export default function InventarioPage() {
                 No hay productos en esta categoría
               </h3>
               <p className="text-sm text-slate-500 max-w-sm mx-auto mt-1 mb-4">
-                Agrega productos al inventario con fotografía para usarlos en el POS y taller.
+                Agrega productos al inventario con fotografía para usarlos en el POS, taller y tienda web.
               </p>
               <Button
-                onClick={() => setIsModalOpen(true)}
+                onClick={handleOpenCreateModal}
                 size="sm"
                 className="bg-blue-600 hover:bg-blue-700"
               >
@@ -155,6 +169,7 @@ export default function InventarioPage() {
                     <th className="py-3 px-4 text-right">COSTO</th>
                     <th className="py-3 px-4 text-right">P. VENTA</th>
                     <th className="py-3 px-4 text-center">STOCK</th>
+                    <th className="py-3 px-4 text-center">ACCIÓN</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -168,12 +183,13 @@ export default function InventarioPage() {
                     return (
                       <tr
                         key={product.id}
-                        className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors"
+                        onClick={() => handleOpenEditModal(product)}
+                        className="hover:bg-blue-50/40 dark:hover:bg-slate-800/50 cursor-pointer transition-colors group"
                       >
-                        {/* Foto Thumbnail */}
+                        {/* Foto Thumbnail Clickable */}
                         <td className="py-2.5 px-4 text-center">
                           {product.imageUrl ? (
-                            <div className="h-12 w-12 rounded-lg overflow-hidden border border-slate-200 bg-white dark:border-slate-700 mx-auto shadow-xs">
+                            <div className="relative h-12 w-12 rounded-lg overflow-hidden border border-slate-200 bg-white dark:border-slate-700 mx-auto shadow-xs group-hover:scale-105 transition-transform">
                               {/* eslint-disable-next-line @next/next/no-img-element */}
                               <img
                                 src={product.imageUrl}
@@ -182,13 +198,17 @@ export default function InventarioPage() {
                               />
                             </div>
                           ) : (
-                            <div className="h-12 w-12 rounded-lg border border-dashed border-slate-200 bg-slate-50 text-slate-400 flex items-center justify-center mx-auto dark:border-slate-800 dark:bg-slate-900">
-                              <Glasses className="h-5 w-5" />
+                            <div
+                              title="Haz clic para subir fotografía"
+                              className="h-12 w-12 rounded-lg border-2 border-dashed border-slate-200 bg-slate-50 text-slate-400 group-hover:border-blue-400 group-hover:text-blue-500 flex flex-col items-center justify-center mx-auto dark:border-slate-800 dark:bg-slate-900 transition-colors"
+                            >
+                              <Upload className="h-4 w-4" />
+                              <span className="text-[9px] font-semibold mt-0.5">Subir</span>
                             </div>
                           )}
                         </td>
 
-                        <td className="py-3 px-4 font-mono text-xs font-bold text-blue-600">
+                        <td className="py-3 px-4 font-mono text-xs font-bold text-blue-600 group-hover:underline">
                           {product.sku}
                         </td>
                         <td className="py-3 px-4">
@@ -237,6 +257,19 @@ export default function InventarioPage() {
                             {stock} un.
                           </Badge>
                         </td>
+                        <td className="py-3 px-4 text-center">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenEditModal(product);
+                            }}
+                            className="p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-slate-800 transition-colors"
+                            title="Editar Producto y Foto"
+                          >
+                            <Edit3 className="h-4 w-4" />
+                          </button>
+                        </td>
                       </tr>
                     );
                   })}
@@ -247,11 +280,15 @@ export default function InventarioPage() {
         </CardContent>
       </Card>
 
-      {/* Product Creation Modal */}
+      {/* Product Creation / Edit Modal */}
       <ProductFormModal
         isOpen={isModalOpen}
+        product={selectedProduct}
         onClose={() => {
           setIsModalOpen(false);
+          setSelectedProduct(null);
+        }}
+        onSuccess={() => {
           loadData();
         }}
       />

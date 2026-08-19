@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   UploadCloud,
@@ -13,17 +13,25 @@ import {
   AlertCircle,
   CheckCircle2,
   Globe,
+  Edit3,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { createProduct } from "@/server/actions/inventory";
+import { createProduct, updateProduct } from "@/server/actions/inventory";
 import { ProductCategory } from "@/types";
 
 interface ProductFormModalProps {
   isOpen: boolean;
   onClose: () => void;
+  product?: any | null;
+  onSuccess?: () => void;
 }
 
-export function ProductFormModal({ isOpen, onClose }: ProductFormModalProps) {
+export function ProductFormModal({
+  isOpen,
+  onClose,
+  product,
+  onSuccess,
+}: ProductFormModalProps) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -59,6 +67,62 @@ export function ProductFormModal({ isOpen, onClose }: ProductFormModalProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Populate or reset form when modal opens or product changes
+  useEffect(() => {
+    if (product) {
+      setSku(product.sku || "");
+      setBarcode(product.barcode || "");
+      setName(product.name || "");
+      setDescription(product.description || "");
+      setCategory(product.category || "FRAME");
+      setCostPrice(Number(product.costPrice) || 0);
+      setSalePrice(Number(product.salePrice) || 0);
+      setStock(Number(product.stock) || 0);
+      setMinStock(Number(product.minStock) || 2);
+
+      setFrameModel(product.frameModel || "");
+      setFrameColor(product.frameColor || "");
+      setFrameMaterial(product.frameMaterial || "Acetato");
+      setFrameEyeSize(product.frameEyeSize || 52);
+      setFrameBridge(product.frameBridge || 18);
+      setFrameTemple(product.frameTemple || 140);
+
+      setBaseCurve(product.baseCurve || undefined);
+      setDiameter(product.diameter || undefined);
+      setSphereRange(product.sphereRange || "");
+      setShowInCatalog(product.showInCatalog !== undefined ? product.showInCatalog : true);
+
+      setImageUrl(product.imageUrl || null);
+      setImagePreview(product.imageUrl || null);
+    } else {
+      setSku("");
+      setBarcode("");
+      setName("");
+      setDescription("");
+      setCategory("FRAME");
+      setCostPrice(0);
+      setSalePrice(0);
+      setStock(1);
+      setMinStock(2);
+
+      setFrameModel("");
+      setFrameColor("");
+      setFrameMaterial("Acetato");
+      setFrameEyeSize(52);
+      setFrameBridge(18);
+      setFrameTemple(140);
+
+      setBaseCurve(undefined);
+      setDiameter(undefined);
+      setSphereRange("");
+      setShowInCatalog(true);
+
+      setImageUrl(null);
+      setImagePreview(null);
+    }
+    setError(null);
+  }, [product, isOpen]);
+
   if (!isOpen) return null;
 
   const handleImageFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -69,7 +133,7 @@ export function ProductFormModal({ isOpen, onClose }: ProductFormModalProps) {
     const localUrl = URL.createObjectURL(file);
     setImagePreview(localUrl);
 
-    // Upload to server endpoint /api/upload
+    // Upload to server endpoint /api/upload (Vercel Blob)
     setIsUploadingImage(true);
     setError(null);
 
@@ -114,7 +178,7 @@ export function ProductFormModal({ isOpen, onClose }: ProductFormModalProps) {
     setIsSubmitting(true);
     setError(null);
 
-    const res = await createProduct({
+    const payload = {
       sku: sku.trim().toUpperCase(),
       barcode: barcode || undefined,
       name: name.trim(),
@@ -138,82 +202,92 @@ export function ProductFormModal({ isOpen, onClose }: ProductFormModalProps) {
       baseCurve: category === "CONTACT_LENS" ? baseCurve : undefined,
       diameter: category === "CONTACT_LENS" ? diameter : undefined,
       sphereRange: sphereRange || undefined,
-    });
+    };
+
+    let res: any;
+    if (product?.id) {
+      res = await updateProduct(product.id, payload);
+    } else {
+      res = await createProduct(payload);
+    }
 
     setIsSubmitting(false);
 
     if (res.success) {
-      alert("¡Producto registrado en el inventario exitosamente!");
+      if (onSuccess) onSuccess();
       onClose();
       router.refresh();
     } else {
-      setError(res.error || "No se pudo registrar el producto.");
+      setError(res.error || "No se pudo guardar el producto.");
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs overflow-y-auto">
-      <div className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-2xl dark:bg-slate-900 border border-slate-200 dark:border-slate-800 my-8">
-        {/* Header */}
-        <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
-          <div className="flex items-center gap-2">
-            <div className="h-9 w-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center dark:bg-blue-950/60">
-              <Glasses className="h-5 w-5" />
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
+      <div className="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl border border-slate-200 dark:bg-slate-900 dark:border-slate-800 my-8 overflow-hidden">
+        {/* Modal Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40">
+          <div className="flex items-center gap-2.5">
+            <div className="h-9 w-9 rounded-xl bg-blue-600/10 text-blue-600 flex items-center justify-center">
+              {product ? <Edit3 className="h-5 w-5" /> : <Glasses className="h-5 w-5" />}
             </div>
             <div>
-              <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">
-                Registrar Producto en Catálogo
+              <h3 className="font-bold text-slate-900 dark:text-slate-100 text-base">
+                {product ? "Editar Producto e Imagen" : "Nuevo Producto en Catálogo"}
               </h3>
               <p className="text-xs text-slate-500">
-                Agrega monturas, cristales o lentes de contacto con fotografía y medidas.
+                {product
+                  ? `Modificando ${product.sku} - ${product.name}`
+                  : "Registra monturas, cristales o lentes de contacto con fotografía"}
               </p>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
           >
             <X className="h-5 w-5" />
           </button>
         </div>
 
-        {error && (
-          <div className="mt-4 flex items-center gap-2 p-3 rounded-lg bg-red-50 text-red-700 text-xs border border-red-200">
-            <AlertCircle className="h-4 w-4 shrink-0" />
-            <span>{error}</span>
-          </div>
-        )}
+        {/* Modal Body / Form */}
+        <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto text-xs">
+          {error && (
+            <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs flex items-center gap-2 dark:bg-red-950/40 dark:border-red-900 dark:text-red-300">
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
 
-        <form onSubmit={handleSubmit} className="mt-4 space-y-4 text-xs">
-          {/* Zona de Carga de Imagen */}
+          {/* Subida de Imagen (Vercel Blob / Drag & Drop) */}
           <div className="space-y-1.5">
-            <label className="font-semibold text-slate-700 dark:text-slate-300 block">
+            <label className="font-bold text-slate-700 dark:text-slate-200 block">
               Fotografía del Producto (Montura / Lente)
             </label>
 
             {imagePreview || imageUrl ? (
-              <div className="relative flex items-center gap-4 p-3 rounded-xl border border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-800/50">
-                <div className="relative h-20 w-20 rounded-lg overflow-hidden border border-slate-200 bg-white dark:border-slate-700 flex items-center justify-center shrink-0 shadow-xs">
+              <div className="flex items-center gap-4 p-3 rounded-xl border border-slate-200 bg-slate-50/50 dark:border-slate-700 dark:bg-slate-800/40">
+                <div className="relative h-20 w-20 rounded-lg overflow-hidden border border-slate-300 bg-white dark:border-slate-600 shrink-0">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
-                    src={imageUrl || imagePreview || ""}
+                    src={imagePreview || imageUrl!}
                     alt="Vista previa"
                     className="h-full w-full object-cover object-center"
                   />
                   {isUploadingImage && (
-                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center text-white text-[10px] font-bold">
+                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center text-white text-[10px] font-bold">
                       Subiendo...
                     </div>
                   )}
                 </div>
 
                 <div className="flex-1 space-y-1">
-                  <p className="text-xs font-semibold text-slate-800 dark:text-slate-200">
-                    Imagen cargada correctamente
+                  <p className="font-semibold text-slate-800 dark:text-slate-200">
+                    Foto cargada correctamente
                   </p>
-                  <p className="text-[11px] text-slate-400">
-                    {imageUrl ? imageUrl : "Guardando en servidor local..."}
+                  <p className="text-[11px] text-slate-500 truncate max-w-xs">
+                    {imageUrl || "Almacenada en Vercel Blob"}
                   </p>
                   <div className="flex gap-2 pt-1">
                     <button
@@ -244,7 +318,7 @@ export function ProductFormModal({ isOpen, onClose }: ProductFormModalProps) {
                   Haz clic o arrastra una foto de la montura aquí
                 </p>
                 <p className="text-[11px] text-slate-400 mt-0.5">
-                  Formatos soportados: PNG, JPG o WEBP (máx. 5MB)
+                  Formatos soportados: PNG, JPG o WEBP (subida a Vercel Blob)
                 </p>
               </div>
             )}
@@ -335,7 +409,7 @@ export function ProductFormModal({ isOpen, onClose }: ProductFormModalProps) {
 
           {/* Campos específicos de Monturas */}
           {category === "FRAME" && (
-            <div className="p-3 rounded-xl bg-blue-50/60 border border-blue-100 dark:bg-blue-950/30 dark:border-blue-900/60 space-y-3">
+            <div className="p-3.5 rounded-xl bg-blue-50/60 border border-blue-100 dark:bg-blue-950/30 dark:border-blue-900/60 space-y-3">
               <p className="font-bold text-blue-800 dark:text-blue-300 text-[11px] uppercase tracking-wider">
                 Especificaciones de la Montura
               </p>
@@ -411,7 +485,7 @@ export function ProductFormModal({ isOpen, onClose }: ProductFormModalProps) {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">
-                Stock Inicial *
+                Stock Actual *
               </label>
               <input
                 type="number"
@@ -473,7 +547,11 @@ export function ProductFormModal({ isOpen, onClose }: ProductFormModalProps) {
               className="bg-blue-600 hover:bg-blue-700 text-white gap-2"
             >
               <Save className="h-4 w-4" />
-              {isSubmitting ? "Guardando..." : "Guardar Producto"}
+              {isSubmitting
+                ? "Guardando..."
+                : product
+                ? "Actualizar Producto"
+                : "Guardar Producto"}
             </Button>
           </div>
         </form>
