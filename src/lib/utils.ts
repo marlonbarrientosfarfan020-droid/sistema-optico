@@ -19,6 +19,14 @@ function toNumeric(val: NumericValue): number | null {
 }
 
 /**
+ * Safely rounds numbers to 2 decimal places to avoid floating point inaccuracies in finance
+ */
+export function round2(num: number | string | null | undefined): number {
+  const n = Number(num) || 0;
+  return Math.round((n + Number.EPSILON) * 100) / 100;
+}
+
+/**
  * Formats monetary amounts in Peruvian Soles (S/ X,XXX.XX)
  */
 export function formatCurrency(amount: number | string | { toNumber?: () => number } | null | undefined): string {

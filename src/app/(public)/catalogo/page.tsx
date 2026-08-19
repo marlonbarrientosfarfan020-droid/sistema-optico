@@ -23,7 +23,9 @@ import {
   ChevronRight,
   ExternalLink,
   Lock,
-  ImageIcon,
+  SearchX,
+  RotateCcw,
+  AlertCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -31,7 +33,7 @@ import { formatCurrency } from "@/lib/utils";
 import { trackWorkOrder } from "@/server/actions/work-orders";
 import { getPublicCatalogProducts } from "@/server/actions/inventory";
 
-// Curated Showcase Products (Fallback / Initial)
+// Curated Showcase Fallback Products
 const INITIAL_CURATED_FRAMES = [
   {
     id: "prod-1",
@@ -138,7 +140,7 @@ const INITIAL_CURATED_FRAMES = [
 ];
 
 export default function CatalogoPublicoPage() {
-  const [productsList, setProductsList] = useState<any[]>(INITIAL_CURATED_FRAMES);
+  const [productsList, setProductsList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState("TODAS");
   const [selectedShape, setSelectedShape] = useState("TODAS");
@@ -163,21 +165,23 @@ export default function CatalogoPublicoPage() {
             brand: p.brandRef?.name || (p.name.split(" ")[0] || "OptiCore"),
             category: p.category === "FRAME" ? "FRAME" : "SUNGLASSES",
             faceShape: "TODOS LOS ROSTROS",
-            style: p.frameModel || "Estándar",
+            style: p.frameModel || "Diseño Oftálmico",
             material: p.frameMaterial || "Acetato Premium",
             measurements: `${p.frameEyeSize || 52}□${p.frameBridge || 18}-${p.frameTemple || 140}`,
-            color: p.frameColor || "Variado",
+            color: p.frameColor || "Acabado Especial",
             price: Number(p.salePrice),
             originalPrice: Number(p.salePrice) * 1.2,
             isNew: true,
             tag: p.category === "FRAME" ? "Oftálmico" : "Destacado",
             imageUrl: p.imageUrl || null,
           }));
-          // Put live database items first
           setProductsList([...mappedDbProducts, ...INITIAL_CURATED_FRAMES]);
+        } else {
+          setProductsList(INITIAL_CURATED_FRAMES);
         }
       } catch (err) {
         console.error("Error al cargar productos públicos:", err);
+        setProductsList(INITIAL_CURATED_FRAMES);
       } finally {
         setLoading(false);
       }
@@ -201,42 +205,57 @@ export default function CatalogoPublicoPage() {
       searchFilter === "" ||
       item.name.toLowerCase().includes(searchFilter.toLowerCase()) ||
       item.brand.toLowerCase().includes(searchFilter.toLowerCase()) ||
-      item.color.toLowerCase().includes(searchFilter.toLowerCase());
+      item.color.toLowerCase().includes(searchFilter.toLowerCase()) ||
+      item.sku.toLowerCase().includes(searchFilter.toLowerCase());
 
     return matchCategory && matchShape && matchQuery;
   });
 
   const handleTrackSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!trackingQuery.trim()) return;
+    const query = trackingQuery.trim();
+    if (!query) return;
 
     setIsSearchingTrack(true);
     setTrackError(null);
     setTrackingResult(null);
 
-    const res = await trackWorkOrder(trackingQuery);
-    setIsSearchingTrack(false);
-
-    if (res) {
-      setTrackingResult(res);
-    } else {
-      setTrackError("No se encontró ninguna orden con ese DNI o Código de Trabajo.");
+    try {
+      const res = await trackWorkOrder(query);
+      if (res) {
+        setTrackingResult(res);
+      } else {
+        setTrackError(
+          "No encontramos ninguna orden de trabajo con el DNI o Código ingresado. Verifica los dígitos o contáctanos por WhatsApp para asistirte."
+        );
+      }
+    } catch (err) {
+      setTrackError("Ocurrió un error al consultar el estado. Por favor intenta de nuevo.");
+    } finally {
+      setIsSearchingTrack(false);
     }
   };
 
-  const getWhatsAppLink = (productName: string, sku: string, price: number) => {
+  const getWhatsAppLink = (productName: string, sku: string, price: number, imageUrl?: string | null) => {
     const phone = "51987654321";
-    const text = encodeURIComponent(
-      `¡Hola OptiCore! Me interesa la montura ${productName} (SKU: ${sku}) con precio de ${formatCurrency(price)}. ¿Tienen stock disponible y opción de graduar con lunas BlueBlock?`
-    );
-    return `https://wa.me/${phone}?text=${text}`;
+    let message = `¡Hola OptiCore! Me interesa la montura ${productName} (SKU: ${sku}) con precio de ${formatCurrency(price)}. ¿Tienen disponibilidad y opción de biselar con lunas BlueBlock?`;
+    if (imageUrl) {
+      message += `\nFoto de referencia: ${imageUrl}`;
+    }
+    return `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
+  };
+
+  const handleResetFilters = () => {
+    setSelectedCategory("TODAS");
+    setSelectedShape("TODAS");
+    setSearchFilter("");
   };
 
   return (
-    <div className="space-y-20 pb-20">
+    <div className="space-y-16 sm:space-y-20 pb-20">
       {/* 1. Header Flotante Glassmorphism */}
       <header className="sticky top-4 z-50 max-w-7xl mx-auto px-4 sm:px-6">
-        <nav className="flex items-center justify-between px-5 py-3 rounded-2xl backdrop-blur-xl bg-slate-900/80 border border-slate-800/80 shadow-2xl">
+        <nav className="flex items-center justify-between px-4 sm:px-5 py-3 rounded-2xl backdrop-blur-xl bg-slate-900/85 border border-slate-800/80 shadow-2xl">
           <Link href="/catalogo" className="flex items-center gap-2.5 group">
             <div className="h-10 w-10 rounded-xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-cyan-400 text-white flex items-center justify-center shadow-lg shadow-blue-500/25 group-hover:scale-105 transition-transform">
               <Eye className="h-5 w-5" />
@@ -245,7 +264,7 @@ export default function CatalogoPublicoPage() {
               <span className="font-extrabold text-base tracking-tight text-white flex items-center gap-1.5">
                 OptiCore <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">PRO</span>
               </span>
-              <p className="text-[10px] text-slate-400">Óptica & Ficha Clínica</p>
+              <p className="text-[10px] text-slate-400">Óptica Médica & Catálogo</p>
             </div>
           </Link>
 
@@ -254,10 +273,7 @@ export default function CatalogoPublicoPage() {
             <a href="#catalogo" className="hover:text-blue-400 transition-colors">
               Catálogo 2026
             </a>
-            <a href="#tecnologia" className="hover:text-blue-400 transition-colors">
-              Cristales BlueBlock
-            </a>
-            <a href="#rastreo" className="hover:text-cyan-400 transition-colors flex items-center gap-1">
+            <a href="#rastreo" className="hover:text-cyan-400 transition-colors flex items-center gap-1.5">
               <Sparkles className="h-3.5 w-3.5 text-cyan-400" /> Rastrear mis Lentes
             </a>
           </div>
@@ -265,7 +281,7 @@ export default function CatalogoPublicoPage() {
           {/* Right CTA */}
           <div className="flex items-center gap-2.5">
             <a
-              href="https://wa.me/51987654321?text=Hola%20OptiCore,%20deseo%20agendar%20un%20examen%20de%20la%20vista"
+              href="https://wa.me/51987654321?text=Hola%20OptiCore,%20deseo%20agendar%20un%20examen%20visual"
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-lg shadow-emerald-600/20 transition-all hover:scale-105"
@@ -277,7 +293,7 @@ export default function CatalogoPublicoPage() {
             <Link href="/login">
               <Button size="sm" variant="outline" className="rounded-xl border-slate-700 text-xs text-slate-300 hover:text-white hover:bg-slate-800 gap-1.5">
                 <Lock className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">Personal</span>
+                <span className="hidden sm:inline">Acceso Personal</span>
               </Button>
             </Link>
           </div>
@@ -286,17 +302,15 @@ export default function CatalogoPublicoPage() {
 
       {/* 2. Hero Section de Alto Impacto Visual */}
       <section className="relative max-w-7xl mx-auto px-4 sm:px-6 pt-4 lg:pt-12">
-        {/* Glow Spheres */}
         <div className="absolute top-10 left-1/4 w-96 h-96 bg-blue-600/20 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute top-20 right-1/4 w-96 h-96 bg-cyan-500/15 rounded-full blur-3xl pointer-events-none" />
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
           {/* Left Text (7 cols) */}
           <div className="lg:col-span-7 space-y-6 text-center lg:text-left">
-            {/* Badges */}
             <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-semibold">
               <Sparkles className="h-3.5 w-3.5 text-blue-400 animate-spin" style={{ animationDuration: "6s" }} />
-              Colección 2026 • Fotos Reales en Vercel Blob
+              Colección 2026 • Lunas con Filtro Blue Defense UV400
             </div>
 
             <h1 className="text-4xl sm:text-6xl font-extrabold tracking-tight text-white leading-tight">
@@ -307,7 +321,7 @@ export default function CatalogoPublicoPage() {
             </h1>
 
             <p className="text-base sm:text-lg text-slate-400 max-w-2xl mx-auto lg:mx-0 font-normal">
-              Monturas oftálmicas de diseñador, titanio ultraligero y cristales de alta precisión tallados digitalmente en nuestro taller propio.
+              Monturas de diseñador, titanio ultraligero y cristales de alta precisión tallados digitalmente en nuestro taller propio.
             </p>
 
             {/* CTAs */}
@@ -343,14 +357,13 @@ export default function CatalogoPublicoPage() {
             </div>
           </div>
 
-          {/* Right Floating Glasses Showcase (5 cols) */}
+          {/* Right Floating Showcase (5 cols) */}
           <div className="lg:col-span-5 flex justify-center relative">
             <motion.div
               animate={{ y: [0, -16, 0] }}
               transition={{ repeat: Infinity, duration: 4.5, ease: "easeInOut" }}
               className="relative w-full max-w-md"
             >
-              {/* Glow Behind */}
               <div className="absolute inset-0 bg-gradient-to-tr from-blue-600/30 to-cyan-500/30 rounded-3xl blur-2xl transform rotate-6" />
 
               <div className="relative rounded-3xl border border-slate-700/60 bg-gradient-to-b from-slate-900/90 to-slate-950 p-6 shadow-2xl backdrop-blur-xl space-y-4">
@@ -363,12 +376,14 @@ export default function CatalogoPublicoPage() {
                   </span>
                 </div>
 
-                <div className="h-56 w-full rounded-2xl overflow-hidden bg-slate-950/60 border border-slate-800 flex items-center justify-center p-4">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
+                <div className="relative h-56 w-full rounded-2xl overflow-hidden bg-slate-950/60 border border-slate-800 flex items-center justify-center p-4">
+                  <Image
                     src="https://images.unsplash.com/photo-1511499767150-a48a237f0083?w=800&auto=format&fit=crop&q=80"
-                    alt="Montura de Lujo"
-                    className="h-full w-full object-cover object-center rounded-xl hover:scale-105 transition-transform duration-500"
+                    alt="Montura de Lujo Ray-Ban Clubmaster"
+                    fill
+                    priority
+                    sizes="(max-width: 768px) 100vw, 450px"
+                    className="object-cover object-center rounded-xl hover:scale-105 transition-transform duration-500"
                   />
                 </div>
 
@@ -432,7 +447,7 @@ export default function CatalogoPublicoPage() {
               <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-500" />
               <input
                 type="text"
-                placeholder="Buscar Ray-Ban, Cat Eye..."
+                placeholder="Buscar Ray-Ban, Cat Eye, SKU..."
                 value={searchFilter}
                 onChange={(e) => setSearchFilter(e.target.value)}
                 className="w-full h-9 pl-9 pr-3 rounded-xl border border-slate-800 bg-slate-950 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -460,95 +475,131 @@ export default function CatalogoPublicoPage() {
           </div>
         </div>
 
-        {/* 4. Product Cards Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          <AnimatePresence>
-            {filteredProducts.map((prod) => (
-              <motion.div
-                key={prod.id}
-                layout
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.9 }}
-                transition={{ duration: 0.3 }}
-                className="group relative rounded-3xl border border-slate-800/80 bg-slate-900/60 p-5 shadow-lg hover:shadow-2xl hover:border-slate-700 hover:-translate-y-2 transition-all duration-300 flex flex-col justify-between"
+        {/* 4. Product Cards Grid & Loading / Empty States */}
+        {loading ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[1, 2, 3, 4, 5, 6].map((sk) => (
+              <div
+                key={sk}
+                className="rounded-3xl border border-slate-800 bg-slate-900/40 p-5 space-y-4 animate-pulse"
               >
-                {/* Badge Tag */}
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-1 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">
-                    {prod.tag}
-                  </span>
-                  <span className="text-xs font-mono text-slate-500">{prod.measurements}</span>
-                </div>
-
-                {/* Product Image with Vercel Blob / Image fallback */}
-                <div className="relative h-52 w-full rounded-2xl overflow-hidden bg-slate-950/80 border border-slate-800/80 flex items-center justify-center p-2 mb-4 group-hover:border-blue-500/30 transition-colors">
-                  {prod.imageUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={prod.imageUrl}
-                      alt={prod.name}
-                      className="h-full w-full object-cover object-center rounded-xl group-hover:scale-108 transition-transform duration-500"
-                    />
-                  ) : (
-                    <div className="flex flex-col items-center justify-center text-slate-500 gap-2">
-                      <Glasses className="h-12 w-12 text-slate-600 group-hover:text-blue-400 transition-colors" />
-                      <span className="text-[11px]">Foto en Taller</span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Product Info */}
-                <div className="space-y-2 flex-1">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-cyan-400">{prod.brand}</span>
-                    <span className="text-[11px] text-slate-400">{prod.style}</span>
-                  </div>
-
-                  <h3 className="text-base font-bold text-white group-hover:text-blue-400 transition-colors line-clamp-1">
-                    {prod.name}
-                  </h3>
-
-                  <p className="text-xs text-slate-400 line-clamp-1">
-                    {prod.material} • {prod.color}
-                  </p>
-
-                  <div className="pt-2 flex items-baseline justify-between">
-                    <div>
-                      <span className="text-lg font-black text-emerald-400 font-mono">
-                        {formatCurrency(prod.price)}
-                      </span>
-                      {prod.originalPrice > prod.price && (
-                        <span className="ml-2 text-xs text-slate-500 line-through">
-                          {formatCurrency(prod.originalPrice)}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* WhatsApp Action Button */}
-                <div className="pt-4 mt-4 border-t border-slate-800">
-                  <a
-                    href={getWhatsAppLink(prod.name, prod.sku, prod.price)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="w-full h-10 rounded-xl bg-emerald-600/15 hover:bg-emerald-600 border border-emerald-500/30 text-emerald-400 hover:text-white text-xs font-bold flex items-center justify-center gap-2 transition-all shadow-xs hover:shadow-emerald-600/25"
-                  >
-                    <MessageCircle className="h-4 w-4" />
-                    Consultar por WhatsApp
-                  </a>
-                </div>
-              </motion.div>
+                <div className="h-4 bg-slate-800 rounded-lg w-1/3" />
+                <div className="h-48 bg-slate-800 rounded-2xl w-full" />
+                <div className="h-5 bg-slate-800 rounded-lg w-3/4" />
+                <div className="h-4 bg-slate-800 rounded-lg w-1/2" />
+                <div className="h-10 bg-slate-800 rounded-xl w-full" />
+              </div>
             ))}
-          </AnimatePresence>
-        </div>
+          </div>
+        ) : filteredProducts.length === 0 ? (
+          <div className="flex flex-col items-center justify-center p-12 text-center rounded-3xl border border-slate-800 bg-slate-900/40 space-y-4">
+            <div className="h-14 w-14 rounded-2xl bg-blue-500/10 text-blue-400 flex items-center justify-center">
+              <SearchX className="h-7 w-7" />
+            </div>
+            <h3 className="text-lg font-bold text-white">No encontramos monturas con estos filtros</h3>
+            <p className="text-xs text-slate-400 max-w-sm">
+              Prueba seleccionando otra categoría o limpiando los términos de búsqueda en el catálogo.
+            </p>
+            <Button
+              onClick={handleResetFilters}
+              variant="outline"
+              size="sm"
+              className="rounded-xl border-slate-700 text-xs text-slate-200 hover:text-white gap-2"
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+              Restablecer Filtros
+            </Button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            <AnimatePresence>
+              {filteredProducts.map((prod) => (
+                <motion.div
+                  key={prod.id}
+                  layout
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  transition={{ duration: 0.3 }}
+                  className="group relative rounded-3xl border border-slate-800/80 bg-slate-900/60 p-5 shadow-lg hover:shadow-2xl hover:border-slate-700 hover:-translate-y-2 transition-all duration-300 flex flex-col justify-between"
+                >
+                  {/* Badge Tag */}
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-1 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                      {prod.tag}
+                    </span>
+                    <span className="text-xs font-mono text-slate-500">{prod.measurements}</span>
+                  </div>
+
+                  {/* Product Image with Next Image / Fallback */}
+                  <div className="relative h-52 w-full rounded-2xl overflow-hidden bg-slate-950/80 border border-slate-800/80 flex items-center justify-center p-2 mb-4 group-hover:border-blue-500/30 transition-colors">
+                    {prod.imageUrl ? (
+                      <Image
+                        src={prod.imageUrl}
+                        alt={prod.name}
+                        fill
+                        sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                        className="object-cover object-center rounded-xl group-hover:scale-108 transition-transform duration-500"
+                      />
+                    ) : (
+                      <div className="flex flex-col items-center justify-center text-slate-500 gap-2">
+                        <Glasses className="h-12 w-12 text-slate-600 group-hover:text-blue-400 transition-colors" />
+                        <span className="text-[11px]">Foto en Taller</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Product Info */}
+                  <div className="space-y-2 flex-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-cyan-400">{prod.brand}</span>
+                      <span className="text-[11px] text-slate-400">{prod.style}</span>
+                    </div>
+
+                    <h3 className="text-base font-bold text-white group-hover:text-blue-400 transition-colors line-clamp-1">
+                      {prod.name}
+                    </h3>
+
+                    <p className="text-xs text-slate-400 line-clamp-1">
+                      {prod.material} • {prod.color}
+                    </p>
+
+                    <div className="pt-2 flex items-baseline justify-between">
+                      <div>
+                        <span className="text-lg font-black text-emerald-400 font-mono">
+                          {formatCurrency(prod.price)}
+                        </span>
+                        {prod.originalPrice > prod.price && (
+                          <span className="ml-2 text-xs text-slate-500 line-through">
+                            {formatCurrency(prod.originalPrice)}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* WhatsApp Action Button */}
+                  <div className="pt-4 mt-4 border-t border-slate-800">
+                    <a
+                      href={getWhatsAppLink(prod.name, prod.sku, prod.price, prod.imageUrl)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-full h-10 rounded-xl bg-emerald-600/15 hover:bg-emerald-600 border border-emerald-500/30 text-emerald-400 hover:text-white text-xs font-bold flex items-center justify-center gap-2 transition-all shadow-xs hover:shadow-emerald-600/25"
+                    >
+                      <MessageCircle className="h-4 w-4" />
+                      Consultar por WhatsApp
+                    </a>
+                  </div>
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          </div>
+        )}
       </section>
 
       {/* 5. Sección de Rastreo de Orden en Tiempo Real */}
       <section id="rastreo" className="max-w-4xl mx-auto px-4 sm:px-6">
         <div className="rounded-3xl border border-cyan-500/30 bg-gradient-to-b from-slate-900/90 to-slate-950 p-6 sm:p-10 shadow-2xl relative overflow-hidden">
-          {/* Subtle Glow */}
           <div className="absolute top-0 right-0 w-64 h-64 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none" />
 
           <div className="text-center space-y-2 mb-8">
@@ -586,8 +637,9 @@ export default function CatalogoPublicoPage() {
           </form>
 
           {trackError && (
-            <div className="mt-4 p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs text-center max-w-md mx-auto">
-              {trackError}
+            <div className="mt-4 p-3.5 rounded-xl bg-red-500/10 border border-red-500/25 text-red-400 text-xs text-center max-w-md mx-auto flex items-center justify-center gap-2">
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              <span>{trackError}</span>
             </div>
           )}
 

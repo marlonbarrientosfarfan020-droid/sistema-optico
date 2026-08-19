@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { saleSchema, SaleFormData, paymentSchema, PaymentFormData } from "@/lib/validations/sale";
+import { round2 } from "@/lib/utils";
 
 export async function getSales(patientId?: string) {
   try {
@@ -48,10 +49,10 @@ export async function createSale(data: SaleFormData) {
   try {
     const validated = saleSchema.parse(data);
 
-    // Calculate total and balance
-    const totalAmount = validated.totalAmount;
-    const initialPaymentAmount = validated.initialPayment ? validated.initialPayment.amount : 0;
-    const balanceDue = Math.max(0, totalAmount - initialPaymentAmount);
+    // Calculate total and balance with safe 2-decimal rounding
+    const totalAmount = round2(validated.totalAmount);
+    const initialPaymentAmount = validated.initialPayment ? round2(validated.initialPayment.amount) : 0;
+    const balanceDue = round2(Math.max(0, totalAmount - initialPaymentAmount));
     const saleStatus = balanceDue <= 0 ? "COMPLETED" : "PARTIAL";
 
     // Format: VTA-YYYY-XXXX
@@ -66,9 +67,9 @@ export async function createSale(data: SaleFormData) {
         branchId: validated.branchId || null,
         prescriptionId: validated.prescriptionId || null,
         status: saleStatus,
-        subtotal: validated.subtotal,
-        discount: validated.discount,
-        tax: validated.tax,
+        subtotal: round2(validated.subtotal),
+        discount: round2(validated.discount),
+        tax: round2(validated.tax),
         totalAmount,
         paidAmount: initialPaymentAmount,
         balanceDue,
@@ -80,26 +81,26 @@ export async function createSale(data: SaleFormData) {
             productId: item.productId || null,
             description: item.description,
             quantity: item.quantity,
-            unitPrice: item.unitPrice,
-            discount: item.discount,
-            total: item.total,
+            unitPrice: round2(item.unitPrice),
+            discount: round2(item.discount),
+            total: round2(item.total),
           })),
         },
 
         // Create initial payment / deposit if provided
         payments: validated.initialPayment
           ? {
-              create: {
-                amount: validated.initialPayment.amount,
-                paymentMethod: validated.initialPayment.paymentMethod,
-                paymentType:
-                  balanceDue > 0 ? "ADVANCE_DEPOSIT" : "FULL_PAYMENT",
-                referenceNumber: validated.initialPayment.referenceNumber || null,
-                notes:
-                  validated.initialPayment.notes ||
-                  (balanceDue > 0 ? "Seña / Anticipo inicial" : "Pago total al contado"),
-              },
-            }
+            create: {
+              amount: initialPaymentAmount,
+              paymentMethod: validated.initialPayment.paymentMethod,
+              paymentType:
+                balanceDue > 0 ? "ADVANCE_DEPOSIT" : "FULL_PAYMENT",
+              referenceNumber: validated.initialPayment.referenceNumber || null,
+              notes:
+                validated.initialPayment.notes ||
+                (balanceDue > 0 ? "Seña / Anticipo inicial" : "Pago total al contado"),
+            },
+          }
           : undefined,
       },
       include: {
@@ -119,19 +120,20 @@ export async function createSale(data: SaleFormData) {
               create: {
                 type: "SALE",
                 quantity: -item.quantity,
-                previousStock: 0, // updated in trigger/app
+                previousStock: 0,
                 newStock: 0,
                 reason: `Venta ${saleNumber}`,
                 referenceId: sale.id,
               },
             },
           },
-        }).catch((err) => console.warn(`Stock decrement skipped for ${item.productId}:`, err));
+        }).catch((err: any) => console.warn(`Stock decrement skipped for ${item.productId}:`, err));
       }
     }
 
     revalidatePath("/pos");
     revalidatePath("/ventas");
+    revalidatePath("/caja");
     revalidatePath(`/pacientes/${validated.patientId}`);
     return { success: true, data: sale };
   } catch (error: any) {
@@ -163,14 +165,15 @@ export async function recordBalancePayment(
       return { success: false, error: "Esta venta ya no tiene saldo pendiente." };
     }
 
-    const newPaidAmount = sale.paidAmount + validated.amount;
-    const newBalanceDue = Math.max(0, sale.totalAmount - newPaidAmount);
+    const payAmount = round2(validated.amount);
+    const newPaidAmount = round2(sale.paidAmount + payAmount);
+    const newBalanceDue = round2(Math.max(0, sale.totalAmount - newPaidAmount));
     const newStatus = newBalanceDue <= 0 ? "COMPLETED" : "PARTIAL";
 
     const payment = await prisma.payment.create({
       data: {
         saleId,
-        amount: validated.amount,
+        amount: payAmount,
         paymentMethod: validated.paymentMethod,
         paymentType: newBalanceDue <= 0 ? "BALANCE_SETTLEMENT" : "ADVANCE_DEPOSIT",
         referenceNumber: validated.referenceNumber || null,
@@ -193,6 +196,7 @@ export async function recordBalancePayment(
 
     revalidatePath("/ventas");
     revalidatePath("/pos");
+    revalidatePath("/caja");
     return { success: true, data: { sale: updatedSale, payment } };
   } catch (error: any) {
     console.error("Error al registrar pago de saldo:", error);
